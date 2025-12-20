@@ -1,0 +1,41 @@
+/* Header Component */
+.app-header {
+    background-color: var(--color-primary);
+    height: var(--header-height);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 var(--spacing-lg);
+    box-shadow: var(--shadow-md);
+}
+
+.header-content {
+    max-width: var(--max-width-content);
+    width: 100%;
+    text-align: center;
+}
+
+.header-title {
+    font-size: var(--font-size-xxxl);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text-white);
+    margin-bottom: var(--spacing-xs);
+}
+
+.header-subtitle {
+    font-size: var(--font-size-lg);
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: var(--font-weight-normal);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .header-title {
+        font-size: var(--font-size-xl);
+    }
+    
+    .header-subtitle {
+        font-size: var(--font-size-md);
+    }
+}
+

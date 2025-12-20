@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>전남대학교 흡입기 사용 AI 진단</title>
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/utils/reset.css">
+    <link rel="stylesheet" href="css/utils/variables.css">
+    <link rel="stylesheet" href="css/components/header.css">
+    <link rel="stylesheet" href="css/components/menu.css">
+    <link rel="stylesheet" href="css/components/main-section.css?v=4">
+    <link rel="stylesheet" href="css/components/results.css">
+    <link rel="stylesheet" href="css/main.css">
+
+    <!-- Plotly.js for visualization -->
+    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+</head>
+
+<body>
+    <!-- Header Section -->
+    <header class="app-header">
+        <div class="header-content">
+            <h1 class="header-title">전남대학교 AI 기반 흡입기 사용법 평가 시스템</h1>
+        </div>
+    </header>
+
+    <!-- Menu Bar Section -->
+    <nav class="menu-bar">
+        <button id="deviceSelect" class="menu-btn">
+            1. 기기 선택 <span class="dropdown-icon">▼</span>
+        </button>
+        <button id="fileUpload" class="menu-btn" disabled>2. 파일</button>
+        <button id="analyze" class="menu-btn" disabled>3. 분석</button>
+        <button id="save" class="menu-btn" disabled>4. 저장</button>
+
+        <!-- Device Dropdown -->
+        <div id="deviceDropdown" class="dropdown-menu" style="display: none;">
+            <div class="dropdown-item" data-device-id="pMDI_type1">
+                <span class="device-name">pMDI_type1(Suspension pressurized metered-dose inhaler)</span>
+                <span class="device-desc">Ventolin Evohaler, Flixotide Evohaler, Seretide Evohaler, Symbicort Rapihaler,
+                    Flutiform Inhaler</span>
+            </div>
+            <div class="dropdown-item" data-device-id="pMDI_type2">
+                <span class="device-name">pMDI_type2(Solution pressurized metered-dose inhaler)</span>
+                <span class="device-desc">Alvesco Inhaler, Foster</span>
+            </div>
+            <div class="dropdown-item" data-device-id="DPI_type1">
+                <span class="device-name">DPI_type1(Multi-dose cap-opening dry powder inhaler)</span>
+                <span class="device-desc">Anoro Ellipta, Relvar Ellipta, Incruse Ellipta, Trelegy Ellipta, Foster
+                    Nexthaler</span>
+            </div>
+            <div class="dropdown-item" data-device-id="DPI_type2">
+                <span class="device-name">DPI_type2(Multi-dose rotating/button-actuated dry powder inhaler)</span>
+                <span class="device-desc">Eklira Genuair, Duaklir Genuair, Symbicort Turbuhaler, Pulmicort
+                    Turbuhaler</span>
+            </div>
+            <div class="dropdown-item" data-device-id="DPI_type3">
+                <span class="device-name">DPI_type3(Single-dose capsule-based dry powder inhaler)</span>
+                <span class="device-desc">Xoterna Breezhaler, Spiriva Handihaler</span>
+            </div>
+            <div class="dropdown-item" data-device-id="SMI_type1">
+                <span class="device-name">SMI_type1(Soft mist inhaler)</span>
+                <span class="device-desc">Vahelva Respimat, Spiriva Respimat</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Section -->
+    <main class="main-section" id="mainSection">
+        <!-- State: Idle -->
+        <div id="idleState" class="state-content state-idle">
+            <div class="placeholder">
+                <div class="icon-upload">📤</div>
+                <h2>흡입기 사용 비디오를 업로드하세요</h2>
+                <p>지원 형식: MP4, MOV, AVI, MKV</p>
+                <p>최대 크기: 500MB</p>
+            </div>
+        </div>
+
+        <!-- State: Device Selected -->
+        <div id="deviceInfoState" class="state-content" style="display: none;">
+            <div class="device-info">
+                <h3>선택된 기기</h3>
+                <div class="device-badge">
+                    <span class="device-type" id="selectedDeviceType"></span>
+                    <span class="device-name" id="selectedDeviceName"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- State: Video Preview -->
+        <div id="videoPreviewState" class="state-content" style="display: none;">
+            <div class="video-preview">
+                <div class="video-container">
+                    <video id="videoPlayer" controls></video>
+                </div>
+                <div class="video-info">
+                    <h4>비디오 정보</h4>
+                    <table>
+                        <tr>
+                            <td>파일명:</td>
+                            <td><strong id="fileName">-</strong></td>
+                        </tr>
+                        <tr>
+                            <td>재생시간:</td>
+                            <td><strong id="duration">-</strong></td>
+                        </tr>
+                        <tr>
+                            <td>크기:</td>
+                            <td><strong id="fileSize">-</strong></td>
+                        </tr>
+                        <tr>
+                            <td>해상도:</td>
+                            <td><strong id="resolution">-</strong></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- State: Analyzing -->
+        <div id="analyzingState" class="state-content" style="display: none;">
+            <div class="analysis-progress">
+                <h3>분석 진행 중...</h3>
+
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                    <span class="progress-text" id="progressText">0%</span>
+                </div>
+
+                <div class="current-stage">
+                    <p>현재 단계: <strong id="currentStage">초기화 중...</strong></p>
+                    <p>예상 소요 시간: <strong id="estimatedTime">계산 중...</strong></p>
+                </div>
+
+                <div class="agent-logs">
+                    <h4>처리 로그</h4>
+                    <ul id="logList">
+                        <li class="log-info">분석 시작 준비 중...</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- State: Results -->
+        <div id="resultsState" class="state-content" style="display: none;">
+            <div class="analysis-results">
+                <h3>분석 결과</h3>
+
+                <!-- Summary Section -->
+                <div class="summary-section">
+                    <div class="summary-card">
+                        <h4>총점</h4>
+                        <div class="score-display">
+                            <span class="score-value" id="scoreValue">-</span>
+                            <span class="score-max">/13</span>
+                        </div>
+                        <div class="score-percentage" id="scorePercentage">-%</div>
+                    </div>
+
+                    <div class="summary-card">
+                        <h4>사용 모델</h4>
+                        <p id="modelInfo">-</p>
+                    </div>
+
+                    <div class="summary-card">
+                        <h4>분석 시간</h4>
+                        <p id="analysisTime">-</p>
+                    </div>
+                </div>
+
+                <!-- Reference Times - Hidden as per user request -->
+                <div class="reference-times" style="display: none;">
+                    <h4>기준 시점 (Reference Times)</h4>
+                    <table class="results-table">
+                        <thead>
+                            <tr>
+                                <th>항목</th>
+                                <th>시간 (초)</th>
+                                <th>설명</th>
+                            </tr>
+                        </thead>
+                        <tbody id="referenceTimesBody">
+                            <tr>
+                                <td>inhalerIN</td>
+                                <td class="time-value">-</td>
+                                <td>흡입기가 처음 보이는 시점</td>
+                            </tr>
+                            <tr>
+                                <td>faceONinhaler</td>
+                                <td class="time-value">-</td>
+                                <td>흡입기를 입에 대는 시점</td>
+                            </tr>
+                            <tr>
+                                <td>inhalerOUT</td>
+                                <td class="time-value">-</td>
+                                <td>흡입기가 사라지는 시점</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Action Steps -->
+                <div class="action-steps">
+                    <h4>행동 단계 분석 (13단계)</h4>
+                    <div class="action-list" id="actionList">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+
+                <!-- Visualization - Hidden as per user request -->
+                <div class="visualization" style="display: none;">
+                    <h4>타임라인 시각화</h4>
+                    <div id="timelineChart" class="chart-container"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Error State -->
+        <div id="errorState" class="state-content error-message" style="display: none;">
+            <div class="error-content">
+                <div class="error-icon">⚠️</div>
+                <h3 id="errorTitle">오류 발생</h3>
+                <p id="errorMessage"></p>
+                <button id="retryBtn" class="btn-primary">다시 시도</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- File Input (Hidden) -->
+    <input type="file" id="fileInput" accept="video/mp4,video/quicktime,video/x-msvideo,video/x-matroska"
+        style="display: none;">
+
+    <!-- Modal for errors -->
+    <div id="errorModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3 id="modalTitle">오류</h3>
+            <p id="modalMessage"></p>
+            <div class="modal-actions">
+                <button id="modalClose" class="btn-secondary">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TypeScript (compiled to JavaScript) -->
+    <script type="module" src="dist/main.js?v=2"></script>
+</body>
+
+</html>

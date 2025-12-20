@@ -1,0 +1,28 @@
+{
+  "name": "inhaler-analysis-webux",
+  "version": "1.0.0",
+  "description": "전남대학교 흡입기 사용 AI 진단 - 웹 인터페이스",
+  "main": "dist/main.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "clean": "rm -rf dist",
+    "serve": "python -m http.server 8080",
+    "dev": "npm run build && npm run serve"
+  },
+  "keywords": [
+    "inhaler",
+    "analysis",
+    "ai",
+    "medical",
+    "chonnam"
+  ],
+  "author": "BrianTLee",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {}
+}
+

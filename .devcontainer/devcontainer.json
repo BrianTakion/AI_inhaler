@@ -1,0 +1,40 @@
+{
+  "name": "AI-inhaler",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+  
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    }
+  },
+  
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.linting.enabled": true,
+        "python.linting.pylintEnabled": true,
+        "python.formatting.provider": "black",
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "[python]": {
+          "editor.defaultFormatter": "ms-python.python"
+        },
+        "markdown-preview-enhanced.plantumlJarPath": "/workspaces/AI_inhaler/plantuml.jar",
+        "markdown-preview-enhanced.java": "/usr/bin/java"
+      }
+    }
+  },
+  
+  "postCreateCommand": "pip install -r requirements.txt && cd webUX && npm install",
+  
+  "forwardPorts": [8080, 8000],
+  
+  "remoteUser": "root"
+}
