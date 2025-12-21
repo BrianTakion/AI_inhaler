@@ -24,7 +24,68 @@ openai_api_key = os.getenv("OPENAI_API_KEY")
 google_api_key = os.getenv("GOOGLE_API_KEY")
 
 
-def run_device_analysis(device_type: str, video_path: str, llm_models: list):
+def print_analysis_summary(report: dict):
+    """
+    분석 결과 요약 출력
+    
+    Args:
+        report: final_report 딕셔너리 (action_order 포함)
+    """
+    print("\n" + "="*50)
+    print("=== 비디오 분석 결과 요약 ===")
+    print("="*50)
+    
+    # 비디오 정보
+    video_info = report["video_info"]
+    print(f"\n[비디오 정보]")
+    print(f"  파일명: {video_info['video_name']}")
+    print(f"  재생시간: {video_info['play_time']}초")
+    print(f"  총 프레임: {video_info['frame_count']}")
+    print(f"  해상도: {video_info['video_width']}x{video_info['video_height']}px")
+    
+    # 기준 시간
+    reference_times = report["reference_times"]
+    print(f"\n[기준 시간]")
+    for key, value in reference_times.items():
+        print(f"  {key}: {value}초")
+    
+    # 행동 분석
+    print(f"\n[행동 분석]")
+    print(f"  총 감지된 행동: {report['summary']['total_actions_detected']}개")
+    
+    # 최종 판단 결과
+    if "action_decisions" in report:
+        print(f"\n[최종 판단 결과]")
+        action_order = report.get("action_order", [])
+        
+        # action_order에 따라 순서대로 출력
+        for key in action_order:
+            if key in report["action_decisions"]:
+                val = report["action_decisions"][key]
+                result_str = "SUCCESS" if val == 1 else "FAIL"
+                print(f"  {key}: {result_str} ({val})")
+        
+        # action_order에 없는 키들도 출력
+        for key, val in report["action_decisions"].items():
+            if key not in action_order:
+                result_str = "SUCCESS" if val == 1 else "FAIL"
+                print(f"  {key}: {result_str} ({val})")
+    
+    # 최종 종합 기술 출력
+    if "final_summary" in report:
+        print(f"\n[최종 종합 기술]")
+        final_summary = report["final_summary"]
+        if final_summary:
+            # 여러 줄로 출력 (들여쓰기 포함)
+            for line in final_summary.split('\n'):
+                print(f"  {line}")
+        else:
+            print("  종합 기술 정보가 없습니다.")
+    
+    print("\n" + "="*50)
+
+
+def run_device_analysis(device_type: str, video_path: str, llm_models: list, show_browser: bool = False):
     """
     특정 디바이스 타입에 대한 분석 실행
     
@@ -32,6 +93,7 @@ def run_device_analysis(device_type: str, video_path: str, llm_models: list):
         device_type: 디바이스 타입 (예: 'pMDI_type1', 'DPI_type1' 등)
         video_path: 분석할 비디오 파일 경로
         llm_models: 사용할 LLM 모델 리스트
+        show_browser: 브라우저 자동 열기 여부 (기본값: False)
         
     Returns:
         분석 결과 상태
@@ -68,8 +130,7 @@ def run_device_analysis(device_type: str, video_path: str, llm_models: list):
                 if not google_api_key:
                     raise ValueError(
                         f"Google Gemini 모델({model_name})을 사용하려면 GOOGLE_API_KEY가 필요합니다.\n"
-                        ".env 파일에 'GOOGLE_API_KEY=your-key' 형식으로 추가하세요.\n"
-                        "API 키 발급: https://aistudio.google.com/app/apikey"
+                        ".env 파일에 'GOOGLE_API_KEY=your-key' 형식으로 추가하세요."
                     )
                 mllm_instances.append(mLLM.multimodalLLM(llm_name=model_name, api_key=google_api_key))
             else:  # OpenAI 모델
@@ -89,7 +150,8 @@ def run_device_analysis(device_type: str, video_path: str, llm_models: list):
         initial_state = create_initial_state(
             video_path=video_path,
             llm_models=llm_models,
-            api_key=first_model_api_key
+            api_key=first_model_api_key,
+            show_browser=show_browser
         )
         
         # 워크플로우 생성
@@ -104,7 +166,8 @@ def run_device_analysis(device_type: str, video_path: str, llm_models: list):
             
             if final_state.get("final_report"):
                 report = final_state["final_report"]
-                print(f"\n총 {report['summary']['total_actions_detected']}개의 행동이 감지되었습니다.")
+                # 분석 결과 요약 출력
+                print_analysis_summary(report)
             
             print(f"\n총 {len(final_state['agent_logs'])}개의 Agent 로그가 기록되었습니다.")
         else:
@@ -137,12 +200,17 @@ def main():
     video_path = r"/workspaces/AI_inhaler/app_SMI_type1/video_source/SMI-6 Respimat.MOV"
     device_list = ['pMDI_type1', 'pMDI_type2', 'DPI_type1', 'DPI_type2', 'DPI_type3', 'SMI_type1']
     device_type = device_list[5]
-    llm_models = ['gpt-4.1']
+
+    # "gpt-4.1", "gpt-5-nano", "gpt-5.1", "gpt-5.2"
+    # "gemini-2.5-pro", "gemini-3-flash-preview", "gemini-3-pro-preview"
+    llm_models = ['gemini-2.5-pro', 'gpt-5-nano']
+    show_browser = False  # 브라우저 자동 열기 여부 (True: 열기, False: 열지 않기)
     
     result = run_device_analysis(
         device_type=device_type,
         video_path=video_path,
-        llm_models=llm_models
+        llm_models=llm_models,
+        show_browser=show_browser
     )
 
     # ========================================

@@ -12,11 +12,17 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import plotly.graph_objects as go
 from datetime import datetime
+from dotenv import load_dotenv
 from .state import VideoAnalysisState
 
 # app_common 모듈 경로 추가 (상위 2단계 디렉토리)
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), '..'))
 from app_common import class_MultimodalLLM_QA_251107 as mLLM
+
+# .env 파일 로드 (app_common 디렉토리)
+app_common_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'app_common')
+env_path = os.path.join(app_common_dir, ".env")
+load_dotenv(dotenv_path=env_path)
 
 # class_PromptBank_pMDI_type2 import
 import class_PromptBank_pMDI_type2 as PB
@@ -89,8 +95,15 @@ class ReporterAgent:
                 print(f"  파일 경로: {html_path}")
                 print(f"  브라우저에서 열기: file://{html_path}")
                 
-                # 브라우저에서도 표시
-                visualization_fig.show()
+                # show_browser 플래그 확인하여 브라우저 자동 열기 여부 결정
+                show_browser_flag = state.get("show_browser", False)
+                if show_browser_flag:
+                    try:
+                        visualization_fig.show()
+                    except Exception as e:
+                        print(f"[{self.name}] 브라우저 표시 실패 (무시하고 계속 진행): {e}")
+                else:
+                    print(f"[{self.name}] 브라우저 자동 열기 비활성화됨 (show_browser=False)")
                 
                 state["visualization_path"] = html_path
             
@@ -103,7 +116,6 @@ class ReporterAgent:
             })
             
             print(f"\n[{self.name}] 최종 리포트 생성 완료 (평균값 기반)")
-            self._print_summary(final_report)
             
         except Exception as e:
             error_msg = f"[{self.name}] 리포트 생성 중 오류: {str(e)}"
@@ -396,14 +408,13 @@ class ReporterAgent:
                 
         return decisions
     
-    def _generate_final_summary(self, action_decisions: dict, action_analysis: dict, api_key: str = None) -> str:
+    def _generate_final_summary(self, action_decisions: dict, action_analysis: dict) -> str:
         """
         FAIL 항목에 대한 종합 기술 생성 (OpenAI GPT-4.1 사용)
         
         Args:
             action_decisions: 최종 판단 결과
             action_analysis: 행동 분석 상세 정보
-            api_key: OpenAI API 키
             
         Returns:
             종합 기술 문자열 (실패 시 빈 문자열 또는 기본 메시지)
@@ -423,13 +434,14 @@ class ReporterAgent:
             if system_prompt is None or user_prompt is None:
                 return "종합 기술 생성 실패: 프롬프트 생성 오류"
             
-            # API 키 확인
-            if not api_key:
-                return "종합 기술 생성 실패: API 키가 제공되지 않았습니다."
+            # 환경 변수에서 OpenAI API 키 직접 읽기
+            openai_api_key = os.getenv("OPENAI_API_KEY")
+            if not openai_api_key:
+                return "종합 기술 생성 실패: OPENAI_API_KEY 환경 변수가 설정되지 않았습니다."
             
             # OpenAI GPT-4.1 호출
             print(f"\n[{self.name}] FAIL 항목 종합 기술 생성 중 (GPT-4.1 사용)...")
-            mllm = mLLM.multimodalLLM(llm_name="gpt-4.1", api_key=api_key)
+            mllm = mLLM.multimodalLLM(llm_name="gpt-4.1", api_key=openai_api_key)
             summary = mllm.query_answer_chatGPT(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
@@ -487,9 +499,8 @@ class ReporterAgent:
                     }
         
         # 최종 종합 기술 생성
-        api_key = state.get("api_key")
         final_summary = self._generate_final_summary(
-            action_decisions, action_analysis, api_key
+            action_decisions, action_analysis
         )
         
         return {
@@ -498,6 +509,7 @@ class ReporterAgent:
             "action_analysis": action_analysis,
             "action_decisions": action_decisions,
             "final_summary": final_summary,
+            "action_order": self.ACTION_ORDER,
             "summary": {
                 "total_actions_detected": sum(
                     1 for action in action_analysis.values() 
@@ -760,53 +772,4 @@ class ReporterAgent:
             traceback.print_exc()
             return None
     
-    def _print_summary(self, report: dict):
-        """요약 정보 출력"""
-        print("\n" + "="*50)
-        print("=== 비디오 분석 결과 요약 ===")
-        print("="*50)
-        
-        # 비디오 정보
-        video_info = report["video_info"]
-        print(f"\n[비디오 정보]")
-        print(f"  파일명: {video_info['video_name']}")
-        print(f"  재생시간: {video_info['play_time']}초")
-        print(f"  총 프레임: {video_info['frame_count']}")
-        print(f"  해상도: {video_info['video_width']}x{video_info['video_height']}px")
-        
-        # 기준 시간
-        reference_times = report["reference_times"]
-        print(f"\n[기준 시간]")
-        for key, value in reference_times.items():
-            print(f"  {key}: {value}초")
-        
-        # 행동 분석
-        print(f"\n[행동 분석]")
-        print(f"  총 감지된 행동: {report['summary']['total_actions_detected']}개")
-        
-        if "action_decisions" in report:
-            print(f"\n[최종 판단 결과]")
-            for key in self.ACTION_ORDER:
-                if key in report["action_decisions"]:
-                    val = report["action_decisions"][key]
-                    result_str = "SUCCESS" if val == 1 else "FAIL"
-                    print(f"  {key}: {result_str} ({val})")
-            # ACTION_ORDER에 없는 키들도 출력
-            for key, val in report["action_decisions"].items():
-                if key not in self.ACTION_ORDER:
-                    result_str = "SUCCESS" if val == 1 else "FAIL"
-                    print(f"  {key}: {result_str} ({val})")
-        
-        # 최종 종합 기술 출력
-        if "final_summary" in report:
-            print(f"\n[최종 종합 기술]")
-            final_summary = report["final_summary"]
-            if final_summary:
-                # 여러 줄로 출력 (들여쓰기 포함)
-                for line in final_summary.split('\n'):
-                    print(f"  {line}")
-            else:
-                print("  종합 기술 정보가 없습니다.")
-        
-        print("\n" + "="*50)
 

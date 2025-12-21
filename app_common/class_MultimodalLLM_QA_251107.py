@@ -13,14 +13,11 @@ class multimodalLLM:
         # 참고: https://platform.openai.com/docs/models/gpt-4o
         "gpt-4.1": {"context_window": 128_000, "max_output_tokens": 4_096, "supports_vision": True, "supports_video": True, "provider": "openai"},       # 공식 128k context
         "gpt-5-nano": {"context_window": 128_000, "max_output_tokens": 4_096, "supports_vision": True, "supports_video": True, "provider": "openai"},       # 공식 128k context
-        "gpt-5-mini": {"context_window": 128_000, "max_output_tokens": 4_096, "supports_vision": True, "supports_video": True, "provider": "openai"},    # 공식 수치 미공개 → gpt-4o와 동일 가정
         "gpt-5.1": {"context_window": 128_000, "max_output_tokens": 4_096, "supports_vision": True, "supports_video": True, "provider": "openai"},         # 공식 수치 미공개 → gpt-4o와 동일 가정
         "gpt-5.2": {"context_window": 400_000, "max_output_tokens": 128_000, "supports_vision": True, "supports_video": False, "provider": "openai"},         # 공식: 400k context, 128k output, vision 지원, video 미지원
         
         # Google Gemini 모델 (context_window = 입력 제한, max_output_tokens = 출력 제한)
         # 참고: https://ai.google.dev/gemini-api/docs/models/gemini
-        "gemini-2.5-flash-lite": {"context_window": 1_000_000, "max_output_tokens": 8_192, "supports_vision": True, "supports_video": True, "provider": "google"}, # 최대 1M context
-        "gemini-2.5-flash": {"context_window": 1_000_000, "max_output_tokens": 8_192, "supports_vision": True, "supports_video": True, "provider": "google"}, # 최대 1M context
         "gemini-2.5-pro": {"context_window": 1_000_000, "max_output_tokens": 8_192, "supports_vision": True, "supports_video": True, "provider": "google"},   # 최대 1M context
         "gemini-3-flash-preview": {"context_window": 1_000_000, "max_output_tokens": 8_192, "supports_vision": True, "supports_video": True, "provider": "google"},  # 실제 API 모델명
         "gemini-3-pro-preview": {"context_window": 1_000_000, "max_output_tokens": 8_192, "supports_vision": True, "supports_video": True, "provider": "google"},  # 공식 수치 부재 → Pro와 동일 가정
