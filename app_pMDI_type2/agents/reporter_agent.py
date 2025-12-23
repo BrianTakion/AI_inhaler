@@ -361,11 +361,19 @@ class ReporterAgent:
                 decisions['seal_lips'] = 1
             
             # 단순 존재 여부 (구간 내 하나라도 score ≥ 0.5이면 성공)
-            for key in ['exhale_before', 'remove_inhaler', 'exhale_after']:
+            # remove_inhaler, exhale_after: T_face ~ T_out 구간
+            for key in ['remove_inhaler', 'exhale_after']:
                 times, scores = get_time_scores(key)
-                _, f_scores = filter_in_range(times, scores, T_in, T_out)
+                _, f_scores = filter_in_range(times, scores, T_face, T_out)
                 if any(s >= 0.5 for s in f_scores):
                     decisions[key] = 1
+        
+        # exhale_before: T_in ~ T_out 구간
+        if T_in >= 0 and T_out >= 0 and T_in <= T_out:
+            times, scores = get_time_scores('exhale_before')
+            _, f_scores = filter_in_range(times, scores, T_in, T_out)
+            if any(s >= 0.5 for s in f_scores):
+                decisions['exhale_before'] = 1
             
             # inhale_deeply: T_face ~ T_out 구간에서 (seal_lips and inhale_deeply)
             id_times, id_scores = get_time_scores('inhale_deeply')

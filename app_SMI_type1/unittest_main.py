@@ -13,7 +13,10 @@ from dotenv import load_dotenv
 # app_common 모듈 경로 추가
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-load_dotenv()
+# app_common 디렉토리의 .env 파일 로드
+app_common_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'app_common')
+env_path = os.path.join(app_common_dir, ".env")
+load_dotenv(dotenv_path=env_path)
 
 # API 키 로드
 openai_api_key = os.getenv("OPENAI_API_KEY")

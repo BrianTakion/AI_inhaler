@@ -347,11 +347,14 @@ class ReporterAgent:
             decisions['sit_stand'] = check_at_point_and_prev('sit_stand', T_face, 'AND')
             decisions['remove_cover'] = check_at_point_and_prev('remove_cover', T_face, 'OR')
             decisions['inspect_mouthpiece'] = check_at_point_and_prev('inspect_mouthpiece', T_face, 'OR')
-            decisions['shake_inhaler'] = check_at_point_and_prev('shake_inhaler', T_face, 'OR')
             decisions['hold_inhaler'] = check_at_point_and_prev('hold_inhaler', T_face, 'OR')
         
         # 2. T_in ~ T_face 구간
-            # omitted
+        if T_in >= 0 and T_face >= 0 and T_in <= T_face:
+            times, scores = get_time_scores('shake_inhaler')
+            _, f_scores = filter_in_range(times, scores, T_in, T_face)
+            if any(s >= 0.5 for s in f_scores):
+                decisions['shake_inhaler'] = 1
         
         # 3. T_face ~ T_out 구간
         if T_face >= 0 and T_out >= 0 and T_face <= T_out:
@@ -362,11 +365,19 @@ class ReporterAgent:
                 decisions['seal_lips'] = 1
             
             # 단순 존재 여부 (구간 내 하나라도 score ≥ 0.5이면 성공)
-            for key in ['exhale_before', 'remove_inhaler', 'exhale_after']:
+            # remove_inhaler, exhale_after: T_face ~ T_out 구간
+            for key in ['remove_inhaler', 'exhale_after']:
                 times, scores = get_time_scores(key)
-                _, f_scores = filter_in_range(times, scores, T_in, T_out)
+                _, f_scores = filter_in_range(times, scores, T_face, T_out)
                 if any(s >= 0.5 for s in f_scores):
                     decisions[key] = 1
+        
+        # exhale_before: T_in ~ T_out 구간
+        if T_in >= 0 and T_out >= 0 and T_in <= T_out:
+            times, scores = get_time_scores('exhale_before')
+            _, f_scores = filter_in_range(times, scores, T_in, T_out)
+            if any(s >= 0.5 for s in f_scores):
+                decisions['exhale_before'] = 1
             
             # inhale_deeply: T_face ~ T_out 구간에서 (seal_lips and inhale_deeply)
             id_times, id_scores = get_time_scores('inhale_deeply')
