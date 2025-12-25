@@ -149,8 +149,8 @@ class PromptBank:
         # Action 설명 매핑
         action_descriptions = {
             'sit_stand': '앉거나 서서 똑바로 있는 자세',
-            'load_dose': '약물 로딩 (흡입기를 조작, 비틀거나 여는 행동)',
             'remove_cover': '마우스피스 커버 제거',
+            'load_dose': '약물 로딩 (흡입기를 조작, 비틀거나 여는 행동)',
             'inspect_mouthpiece': '마우스피스 검사 (마우스피스를 향해 시선을 두는 행동)',
             'hold_inhaler': '흡입기를 똑바로 잡기',
             'exhale_before': '흡입기에서 멀리 숨 내쉬기 (입 움직임, 머리 내림, 눈 시선 아래로)',

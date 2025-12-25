@@ -72,7 +72,7 @@ class VideoAnalysisState(TypedDict):
     llm_name: Annotated[Optional[str], keep_first]
     llm_models: Annotated[Optional[List[str]], keep_first]
     api_key: Annotated[Optional[str], keep_first]
-    show_browser: Annotated[Optional[bool], keep_first]
+    save_individual_report: Annotated[Optional[bool], keep_first]
     
     # 비디오 정보 (병렬 실행 시 첫 번째 값 유지)
     video_info: Annotated[Optional[Dict[str, Any]], keep_first]
@@ -94,7 +94,7 @@ class VideoAnalysisState(TypedDict):
     agent_logs: Annotated[List[Dict[str, str]], operator.add]
 
 
-def create_initial_state(video_path: str, llm_models: List[str] = None, api_key: str = None, show_browser: bool = False) -> VideoAnalysisState:
+def create_initial_state(video_path: str, llm_models: List[str] = None, api_key: str = None, save_individual_report: bool = False) -> VideoAnalysisState:
     """
     초기 상태 생성
     
@@ -102,7 +102,7 @@ def create_initial_state(video_path: str, llm_models: List[str] = None, api_key:
         video_path: 비디오 파일 경로
         llm_models: 사용할 LLM 모델 리스트 (예: ["gpt-5-nano", "gpt-5-mini"])
         api_key: OpenAI API 키
-        show_browser: 브라우저 자동 열기 여부 (기본값: False)
+        save_individual_report: 개별 에이전트 결과물에 대한 시각화 HTML 저장 여부 (기본값: False)
         
     Returns:
         초기화된 VideoAnalysisState
@@ -117,7 +117,7 @@ def create_initial_state(video_path: str, llm_models: List[str] = None, api_key:
         llm_name=llm_name,
         llm_models=llm_models,
         api_key=api_key,
-        show_browser=show_browser,
+        save_individual_report=save_individual_report,
         video_info=None,
         model_results={},
         reference_times_avg=None,

@@ -43,16 +43,6 @@ def print_analysis_summary(report: dict):
     print(f"  총 프레임: {video_info['frame_count']}")
     print(f"  해상도: {video_info['video_width']}x{video_info['video_height']}px")
     
-    # 기준 시간
-    reference_times = report["reference_times"]
-    print(f"\n[기준 시간]")
-    for key, value in reference_times.items():
-        print(f"  {key}: {value}초")
-    
-    # 행동 분석
-    print(f"\n[행동 분석]")
-    print(f"  총 감지된 행동: {report['summary']['total_actions_detected']}개")
-    
     # 최종 판단 결과
     if "action_decisions" in report:
         print(f"\n[최종 판단 결과]")
@@ -69,7 +59,7 @@ def print_analysis_summary(report: dict):
         for key, val in report["action_decisions"].items():
             if key not in action_order:
                 result_str = "SUCCESS" if val == 1 else "FAIL"
-                print(f"  {key}: {result_str} ({val})")
+                print(f"  {key}: {result_str} ({val}) <--- action_order에 없음음")
     
     # 최종 종합 기술 출력
     if "final_summary" in report:
@@ -85,7 +75,7 @@ def print_analysis_summary(report: dict):
     print("\n" + "="*50)
 
 
-def run_device_analysis(device_type: str, video_path: str, llm_models: list, show_browser: bool = False):
+def run_device_analysis(device_type: str, video_path: str, llm_models: list, save_individual_report: bool = False):
     """
     특정 디바이스 타입에 대한 분석 실행
     
@@ -93,7 +83,7 @@ def run_device_analysis(device_type: str, video_path: str, llm_models: list, sho
         device_type: 디바이스 타입 (예: 'pMDI_type1', 'DPI_type1' 등)
         video_path: 분석할 비디오 파일 경로
         llm_models: 사용할 LLM 모델 리스트
-        show_browser: 브라우저 자동 열기 여부 (기본값: False)
+        save_individual_report: 개별 에이전트 결과물에 대한 시각화 HTML 저장 여부 (기본값: False)
         
     Returns:
         분석 결과 상태
@@ -151,7 +141,7 @@ def run_device_analysis(device_type: str, video_path: str, llm_models: list, sho
             video_path=video_path,
             llm_models=llm_models,
             api_key=first_model_api_key,
-            show_browser=show_browser
+            save_individual_report=save_individual_report
         )
         
         # 워크플로우 생성
@@ -197,20 +187,20 @@ def main():
     # ========================================
     # 사용자 지정 변수
     # ========================================
-    video_path = r"/workspaces/AI_inhaler/app_SMI_type1/video_source/SMI-6 Respimat.MOV"
+    video_path = r"/workspaces/AI_inhaler/app_pMDI_type2/video_source/foster2.mp4"
     device_list = ['pMDI_type1', 'pMDI_type2', 'DPI_type1', 'DPI_type2', 'DPI_type3', 'SMI_type1']
-    device_type = device_list[5]
+    device_type = device_list[1]
 
     # "gpt-4.1", "gpt-5-nano", "gpt-5.1", "gpt-5.2"
     # "gemini-2.5-pro", "gemini-3-flash-preview", "gemini-3-pro-preview"
-    llm_models = ['gemini-2.5-pro', 'gpt-5-nano']
-    show_browser = False  # 브라우저 자동 열기 여부 (True: 열기, False: 열지 않기)
+    llm_models = ['gpt-4.1', 'gpt-5.1', 'gemini-2.5-pro', 'gemini-3-flash-preview']
+    save_individual_report = True  # 개별 리포트 저장 여부 (True: 저장, False: 저장하지 않기)
     
     result = run_device_analysis(
         device_type=device_type,
         video_path=video_path,
         llm_models=llm_models,
-        show_browser=show_browser
+        save_individual_report=save_individual_report
     )
 
     # ========================================

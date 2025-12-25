@@ -93,8 +93,8 @@ class VideoAnalyzerAgent:
             # PromptBank에 저장
             q_mapping_face = {
                 'Q1': 'sit_stand',
-                'Q2': 'load_dose',
-                'Q3': 'remove_cover',
+                'Q2': 'remove_cover',
+                'Q3': 'load_dose',
                 'Q4': 'inspect_mouthpiece',
                 'Q5': 'hold_inhaler',
                 'Q6': 'exhale_before'
@@ -263,8 +263,8 @@ Reason: {{Explain the decision very shortly in Korean.}}
 Analyze the sequence of images as consecutive video frames.
 
 Q1. {self.promptbank.check_action_step_SMI_type1['sit_stand']['action']}
-Q2. {self.promptbank.check_action_step_SMI_type1['load_dose']['action']}
-Q3. {self.promptbank.check_action_step_SMI_type1['remove_cover']['action']}
+Q2. {self.promptbank.check_action_step_SMI_type1['remove_cover']['action']}
+Q3. {self.promptbank.check_action_step_SMI_type1['load_dose']['action']}
 Q4. {self.promptbank.check_action_step_SMI_type1['inspect_mouthpiece']['action']}
 Q5. {self.promptbank.check_action_step_SMI_type1['hold_inhaler']['action']}
 Q6. {self.promptbank.check_action_step_SMI_type1['exhale_before']['action']}
