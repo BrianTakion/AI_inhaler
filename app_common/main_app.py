@@ -187,19 +187,20 @@ def main():
     # ========================================
     # 사용자 지정 변수
     # ========================================
-    video_path = r"/workspaces/AI_inhaler/app_pMDI_type2/video_source/foster2.mp4"
+    video_path = r"/workspaces/AI_inhaler/app_SMI_type1/video_source/SMI-6 Respimat.MOV"
     device_list = ['pMDI_type1', 'pMDI_type2', 'DPI_type1', 'DPI_type2', 'DPI_type3', 'SMI_type1']
-    device_type = device_list[1]
+    device_type = device_list[5]
 
     # "gpt-4.1", "gpt-5-nano", "gpt-5.1", "gpt-5.2"
     # "gemini-2.5-pro", "gemini-3-flash-preview", "gemini-3-pro-preview"
-    llm_models = ['gpt-4.1', 'gpt-5.1', 'gemini-2.5-pro', 'gemini-3-flash-preview']
+    #set_llm_models = ['gpt-4.1', 'gpt-5.1', 'gemini-2.5-pro', 'gemini-3-flash-preview']
+    set_llm_models = ['gpt-4.1', 'gemini-2.5-pro']
     save_individual_report = True  # 개별 리포트 저장 여부 (True: 저장, False: 저장하지 않기)
     
     result = run_device_analysis(
         device_type=device_type,
         video_path=video_path,
-        llm_models=llm_models,
+        llm_models=set_llm_models,
         save_individual_report=save_individual_report
     )
 

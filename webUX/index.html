@@ -1,253 +1,281 @@
 <!DOCTYPE html>
 <html lang="ko">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>전남대학교 흡입기 사용 AI 진단</title>
-
-    <!-- CSS -->
-    <link rel="stylesheet" href="css/utils/reset.css">
-    <link rel="stylesheet" href="css/utils/variables.css">
-    <link rel="stylesheet" href="css/components/header.css">
-    <link rel="stylesheet" href="css/components/menu.css">
-    <link rel="stylesheet" href="css/components/main-section.css?v=4">
-    <link rel="stylesheet" href="css/components/results.css">
-    <link rel="stylesheet" href="css/main.css">
-
-    <!-- Plotly.js for visualization -->
-    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+    <title>전남대학교 멀티에이전트기반 흡입기 사용법 평가 시스템</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/style.css">
 </head>
-
-<body>
-    <!-- Header Section -->
-    <header class="app-header">
-        <div class="header-content">
-            <h1 class="header-title">전남대학교 AI 기반 흡입기 사용법 평가 시스템</h1>
-        </div>
+<body class="bg-gray-50">
+    <!-- Header -->
+    <header class="bg-green-600 text-white py-4 px-6 shadow-md">
+        <h1 class="text-2xl font-bold text-center">
+            전남대학교 멀티에이전트기반 흡입기 사용법 평가 시스템
+        </h1>
     </header>
 
-    <!-- Menu Bar Section -->
-    <nav class="menu-bar">
-        <button id="deviceSelect" class="menu-btn">
-            1. 기기 선택 <span class="dropdown-icon">▼</span>
-        </button>
-        <button id="fileUpload" class="menu-btn" disabled>2. 파일</button>
-        <button id="analyze" class="menu-btn" disabled>3. 분석</button>
-        <button id="save" class="menu-btn" disabled>4. 저장</button>
+    <!-- Navigation Bar -->
+    <nav class="bg-gray-100 border-b border-gray-300 shadow-sm">
+        <div class="flex items-center justify-center space-x-4 py-3 px-6">
+            <!-- Button 1: 기기 선택 -->
+            <div class="relative">
+                <button id="deviceSelectBtn" class="px-4 py-2 rounded-lg font-semibold transition-all duration-200 bg-blue-500 border border-blue-600 text-white shadow-md hover:bg-blue-600 hover:shadow-lg hover:opacity-90">
+                    1. 기기 선택 ▼
+                </button>
+                
+                <!-- Device Dropdown -->
+                <div id="deviceDropdown" class="dropdown-menu hidden">
+                    <div class="dropdown-item device-pmdi1" data-device-id="pMDI_type1">
+                        <span class="device-type">pMDI_type1</span>
+                        <span class="device-name">(Suspension pressurized metered-dose inhaler)</span>
+                        <span class="device-desc">Ventolin Evohaler, Flixotide Evohaler, Seretide Evohaler, Symbicort Rapihaler, Flutiform Inhaler</span>
+                    </div>
+                    <div class="dropdown-item device-pmdi2" data-device-id="pMDI_type2">
+                        <span class="device-type">pMDI_type2</span>
+                        <span class="device-name">(Solution pressurized metered-dose inhaler)</span>
+                        <span class="device-desc">Alvesco Inhaler, Foster</span>
+                    </div>
+                    <div class="dropdown-item device-dpi1" data-device-id="DPI_type1">
+                        <span class="device-type">DPI_type1</span>
+                        <span class="device-name">(Multi-dose cap-opening dry powder inhaler)</span>
+                        <span class="device-desc">Anoro Ellipta, Relvar Ellipta, Incruse Ellipta, Trelegy Ellipta, Foster Nexthaler</span>
+                    </div>
+                    <div class="dropdown-item device-dpi2" data-device-id="DPI_type2">
+                        <span class="device-type">DPI_type2</span>
+                        <span class="device-name">(Multi-dose rotating/button-actuated dry powder inhaler)</span>
+                        <span class="device-desc">Eklira Genuair, Duaklir Genuair, Symbicort Turbuhaler, Pulmicort Turbuhaler</span>
+                    </div>
+                    <div class="dropdown-item device-dpi3" data-device-id="DPI_type3">
+                        <span class="device-type">DPI_type3</span>
+                        <span class="device-name">(Single-dose capsule-based dry powder inhaler)</span>
+                        <span class="device-desc">Xoterna Breezhaler, Spiriva Handihaler</span>
+                    </div>
+                    <div class="dropdown-item device-smi1" data-device-id="SMI_type1">
+                        <span class="device-type">SMI_type1</span>
+                        <span class="device-name">(Soft mist inhaler)</span>
+                        <span class="device-desc">Vahelva Respimat, Spiriva Respimat</span>
+                    </div>
+                </div>
+            </div>
 
-        <!-- Device Dropdown -->
-        <div id="deviceDropdown" class="dropdown-menu" style="display: none;">
-            <div class="dropdown-item" data-device-id="pMDI_type1">
-                <span class="device-name">pMDI_type1(Suspension pressurized metered-dose inhaler)</span>
-                <span class="device-desc">Ventolin Evohaler, Flixotide Evohaler, Seretide Evohaler, Symbicort Rapihaler,
-                    Flutiform Inhaler</span>
-            </div>
-            <div class="dropdown-item" data-device-id="pMDI_type2">
-                <span class="device-name">pMDI_type2(Solution pressurized metered-dose inhaler)</span>
-                <span class="device-desc">Alvesco Inhaler, Foster</span>
-            </div>
-            <div class="dropdown-item" data-device-id="DPI_type1">
-                <span class="device-name">DPI_type1(Multi-dose cap-opening dry powder inhaler)</span>
-                <span class="device-desc">Anoro Ellipta, Relvar Ellipta, Incruse Ellipta, Trelegy Ellipta, Foster
-                    Nexthaler</span>
-            </div>
-            <div class="dropdown-item" data-device-id="DPI_type2">
-                <span class="device-name">DPI_type2(Multi-dose rotating/button-actuated dry powder inhaler)</span>
-                <span class="device-desc">Eklira Genuair, Duaklir Genuair, Symbicort Turbuhaler, Pulmicort
-                    Turbuhaler</span>
-            </div>
-            <div class="dropdown-item" data-device-id="DPI_type3">
-                <span class="device-name">DPI_type3(Single-dose capsule-based dry powder inhaler)</span>
-                <span class="device-desc">Xoterna Breezhaler, Spiriva Handihaler</span>
-            </div>
-            <div class="dropdown-item" data-device-id="SMI_type1">
-                <span class="device-name">SMI_type1(Soft mist inhaler)</span>
-                <span class="device-desc">Vahelva Respimat, Spiriva Respimat</span>
-            </div>
+            <!-- Button 2: 분석할 파일 -->
+            <button id="fileUploadBtn" class="px-4 py-2 rounded-lg font-semibold transition-all duration-200 bg-green-500 border border-green-600 text-white shadow-md hover:bg-green-600 hover:shadow-lg hover:opacity-90">
+                2. 파일 업로드
+            </button>
+            <input type="file" id="fileInput" accept="video/mp4,video/quicktime,video/x-msvideo,video/x-matroska" class="hidden">
+
+            <!-- Button 3: 분석 시작 -->
+            <button id="startAnalysisBtn" class="px-4 py-2 rounded-lg font-semibold transition-all duration-200 bg-orange-500 border border-orange-600 text-white shadow-md hover:bg-orange-600 hover:shadow-lg hover:opacity-90 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:border-gray-300 disabled:hover:opacity-100 disabled:hover:shadow-md" disabled>
+                3. 분석 시작
+            </button>
+
+            <!-- Button 4: 결과 저장 -->
+            <button id="saveResultBtn" class="px-4 py-2 rounded-lg font-semibold transition-all duration-200 bg-purple-500 border border-purple-600 text-white shadow-md hover:bg-purple-600 hover:shadow-lg hover:opacity-90 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:border-gray-300 disabled:hover:opacity-100 disabled:hover:shadow-md" disabled>
+                4. 결과 저장
+            </button>
         </div>
     </nav>
 
-    <!-- Main Section -->
-    <main class="main-section" id="mainSection">
-        <!-- State: Idle -->
-        <div id="idleState" class="state-content state-idle">
-            <div class="placeholder">
-                <div class="icon-upload">📤</div>
-                <h2>흡입기 사용 비디오를 업로드하세요</h2>
-                <p>지원 형식: MP4, MOV, AVI, MKV</p>
-                <p>최대 크기: 500MB</p>
-            </div>
-        </div>
-
-        <!-- State: Device Selected -->
-        <div id="deviceInfoState" class="state-content" style="display: none;">
-            <div class="device-info">
-                <h3>선택된 기기</h3>
-                <div class="device-badge">
-                    <span class="device-type" id="selectedDeviceType"></span>
-                    <span class="device-name" id="selectedDeviceName"></span>
+    <!-- Main Content -->
+    <main class="container mx-auto px-6 py-8 max-w-6xl">
+        <!-- File Upload Area -->
+        <div id="uploadArea" class="upload-container">
+            <!-- Upload Prompt (파일 선택 전 표시) -->
+            <div id="uploadPrompt" class="flex items-center justify-center py-6 px-6">
+                <div class="upload-icon mr-4">
+                    <svg class="w-12 h-12 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                </div>
+                <div class="flex-1">
+                    <h2 class="text-xl font-bold text-gray-800 mb-1">흡입기 사용 비디오를 업로드하세요</h2>
+                    <p class="text-gray-600 text-sm">지원 형식: MP4, MOV, AVI, MKV | 최대 크기: 500MB</p>
+                </div>
+                <div id="uploadedFileInfo" class="ml-4 hidden">
+                    <div class="bg-green-50 border border-green-200 rounded-lg p-3">
+                        <p class="text-green-800 font-semibold text-sm" id="uploadedFileName"></p>
+                        <p class="text-green-600 text-xs" id="uploadedFileSize"></p>
+                    </div>
                 </div>
             </div>
-        </div>
-
-        <!-- State: Video Preview -->
-        <div id="videoPreviewState" class="state-content" style="display: none;">
-            <div class="video-preview">
-                <div class="video-container">
-                    <video id="videoPlayer" controls></video>
-                </div>
-                <div class="video-info">
-                    <h4>비디오 정보</h4>
-                    <table>
-                        <tr>
-                            <td>파일명:</td>
-                            <td><strong id="fileName">-</strong></td>
-                        </tr>
-                        <tr>
-                            <td>재생시간:</td>
-                            <td><strong id="duration">-</strong></td>
-                        </tr>
-                        <tr>
-                            <td>크기:</td>
-                            <td><strong id="fileSize">-</strong></td>
-                        </tr>
-                        <tr>
-                            <td>해상도:</td>
-                            <td><strong id="resolution">-</strong></td>
-                        </tr>
-                    </table>
+            
+            <!-- Video Snapshot Display -->
+            <div id="videoSnapshotDisplay" class="hidden mt-2 px-6 pb-4">
+                <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                    <h3 class="font-bold text-lg mb-3 text-gray-800">동영상 미리보기</h3>
+                    <div class="flex justify-center">
+                        <video id="videoSnapshot" class="max-w-full max-h-96 rounded-lg shadow-md" controls>
+                            <source id="videoSnapshotSource" src="" type="video/mp4">
+                            동영상을 재생할 수 없습니다.
+                        </video>
+                    </div>
                 </div>
             </div>
-        </div>
-
-        <!-- State: Analyzing -->
-        <div id="analyzingState" class="state-content" style="display: none;">
-            <div class="analysis-progress">
-                <h3>분석 진행 중...</h3>
-
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progressFill" style="width: 0%"></div>
-                    <span class="progress-text" id="progressText">0%</span>
-                </div>
-
-                <div class="current-stage">
-                    <p>현재 단계: <strong id="currentStage">초기화 중...</strong></p>
-                    <p>예상 소요 시간: <strong id="estimatedTime">계산 중...</strong></p>
-                </div>
-
-                <div class="agent-logs">
-                    <h4>처리 로그</h4>
-                    <ul id="logList">
-                        <li class="log-info">분석 시작 준비 중...</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-
-        <!-- State: Results -->
-        <div id="resultsState" class="state-content" style="display: none;">
-            <div class="analysis-results">
-                <h3>분석 결과</h3>
-
-                <!-- Summary Section -->
-                <div class="summary-section">
-                    <div class="summary-card">
-                        <h4>총점</h4>
-                        <div class="score-display">
-                            <span class="score-value" id="scoreValue">-</span>
-                            <span class="score-max">/13</span>
+            
+            <!-- File Info Display -->
+            <div id="fileInfoDisplay" class="hidden mt-2 px-6 pb-4">
+                <div class="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+                    <h3 class="font-bold text-lg mb-4 text-gray-800">파일 정보</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <span class="font-semibold text-gray-700">파일명:</span>
+                            <p id="fileInfoName" class="text-gray-900 mt-1"></p>
                         </div>
-                        <div class="score-percentage" id="scorePercentage">-%</div>
+                        <div>
+                            <span class="font-semibold text-gray-700">파일 크기:</span>
+                            <p id="fileInfoSize" class="text-gray-900 mt-1"></p>
+                        </div>
+                        <div>
+                            <span class="font-semibold text-gray-700">파일 형식:</span>
+                            <p id="fileInfoType" class="text-gray-900 mt-1"></p>
+                        </div>
+                        <div>
+                            <span class="font-semibold text-gray-700">마지막 수정:</span>
+                            <p id="fileInfoModified" class="text-gray-900 mt-1"></p>
+                        </div>
                     </div>
+                </div>
+            </div>
+        </div>
 
-                    <div class="summary-card">
-                        <h4>사용 모델</h4>
-                        <p id="modelInfo">-</p>
+        <!-- Analysis Area -->
+        <div id="analysisArea" class="hidden">
+            <!-- Analysis Info -->
+            <div id="analysisInfo" class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <h3 class="font-bold text-lg mb-3 text-blue-900">분석 정보</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                        <span class="font-semibold text-gray-700">기기:</span>
+                        <span id="infoDevice" class="ml-2 text-gray-900"></span>
                     </div>
+                    <div>
+                        <span class="font-semibold text-gray-700">비디오:</span>
+                        <span id="infoFile" class="ml-2 text-gray-900"></span>
+                    </div>
+                    <div>
+                        <span class="font-semibold text-gray-700">멀티에이전트:</span>
+                        <span id="infoAgent" class="ml-2 text-gray-900"></span>
+                    </div>
+                </div>
+            </div>
 
-                    <div class="summary-card">
-                        <h4>분석 시간</h4>
-                        <p id="analysisTime">-</p>
+            <!-- Progress Bar -->
+            <div id="progressBar" class="mb-6">
+                <div class="bg-gray-200 rounded-full h-6 mb-2">
+                    <div id="progressFill" class="bg-blue-600 h-6 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+                <div class="flex justify-between items-center">
+                    <p id="progressStage" class="text-sm text-gray-600">처리 중...</p>
+                    <p id="progressPercent" class="text-sm font-semibold text-blue-600">0%</p>
+                </div>
+            </div>
+
+            <!-- Analysis Logs -->
+            <div id="analysisLogs" class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <h4 class="font-bold mb-3 text-gray-800">분석 로그</h4>
+                <div id="logsContainer" class="space-y-1 max-h-64 overflow-y-auto">
+                    <p class="text-sm text-gray-600">분석을 시작합니다...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Result Area -->
+        <div id="resultArea" class="hidden">
+            <!-- Result Summary -->
+            <div class="bg-white border border-gray-200 rounded-lg p-6 mb-6 shadow-sm">
+                <h2 class="text-2xl font-bold mb-4 text-gray-800">분석 결과</h2>
+                
+                <!-- Video Info -->
+                <div id="resultVideoInfo" class="mb-6">
+                    <h3 class="font-semibold text-lg mb-2 text-gray-700">비디오 정보</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div>
+                            <span class="text-gray-600">파일명:</span>
+                            <p id="resultFileName" class="font-semibold text-gray-900"></p>
+                        </div>
+                        <div>
+                            <span class="text-gray-600">재생시간:</span>
+                            <p id="resultDuration" class="font-semibold text-gray-900"></p>
+                        </div>
+                        <div>
+                            <span class="text-gray-600">해상도:</span>
+                            <p id="resultResolution" class="font-semibold text-gray-900"></p>
+                        </div>
+                        <div>
+                            <span class="text-gray-600">프레임:</span>
+                            <p id="resultFrameCount" class="font-semibold text-gray-900"></p>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Reference Times - Hidden as per user request -->
-                <div class="reference-times" style="display: none;">
-                    <h4>기준 시점 (Reference Times)</h4>
-                    <table class="results-table">
-                        <thead>
-                            <tr>
-                                <th>항목</th>
-                                <th>시간 (초)</th>
-                                <th>설명</th>
-                            </tr>
-                        </thead>
-                        <tbody id="referenceTimesBody">
-                            <tr>
-                                <td>inhalerIN</td>
-                                <td class="time-value">-</td>
-                                <td>흡입기가 처음 보이는 시점</td>
-                            </tr>
-                            <tr>
-                                <td>faceONinhaler</td>
-                                <td class="time-value">-</td>
-                                <td>흡입기를 입에 대는 시점</td>
-                            </tr>
-                            <tr>
-                                <td>inhalerOUT</td>
-                                <td class="time-value">-</td>
-                                <td>흡입기가 사라지는 시점</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <!-- Model Info -->
+                <div id="resultModelInfo" class="mb-6">
+                    <h3 class="font-semibold text-lg mb-2 text-gray-700">모델 정보</h3>
+                    <div class="text-sm">
+                        <span class="text-gray-600">사용 모델:</span>
+                        <span id="modelNames" class="ml-2 font-semibold text-gray-900"></span>
+                        <span class="text-gray-600 ml-4">분석 시간:</span>
+                        <span id="modelTime" class="ml-2 font-semibold text-gray-900"></span>
+                    </div>
+                </div>
+
+                <!-- Summary -->
+                <div id="resultSummary" class="mb-6">
+                    <h3 class="font-semibold text-lg mb-2 text-gray-700">요약</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="bg-blue-50 p-4 rounded-lg">
+                            <p class="text-sm text-gray-600">총 단계</p>
+                            <p id="summaryTotal" class="text-2xl font-bold text-blue-600">0</p>
+                        </div>
+                        <div class="bg-green-50 p-4 rounded-lg">
+                            <p class="text-sm text-gray-600">통과</p>
+                            <p id="summaryPassed" class="text-2xl font-bold text-green-600">0</p>
+                        </div>
+                        <div class="bg-red-50 p-4 rounded-lg">
+                            <p class="text-sm text-gray-600">실패</p>
+                            <p id="summaryFailed" class="text-2xl font-bold text-red-600">0</p>
+                        </div>
+                        <div class="bg-yellow-50 p-4 rounded-lg">
+                            <p class="text-sm text-gray-600">점수</p>
+                            <p id="summaryScore" class="text-2xl font-bold text-yellow-600">0%</p>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Action Steps -->
-                <div class="action-steps">
-                    <h4>행동 단계 분석 (13단계)</h4>
-                    <div class="action-list" id="actionList">
-                        <!-- Dynamically populated -->
+                <div id="resultActionSteps" class="mb-6">
+                    <h3 class="font-semibold text-lg mb-2 text-gray-700">행동 단계 상세</h3>
+                    <div id="actionStepsList" class="action-steps-compact">
+                        <!-- Action steps will be inserted here -->
                     </div>
                 </div>
 
-                <!-- Visualization - Hidden as per user request -->
-                <div class="visualization" style="display: none;">
-                    <h4>타임라인 시각화</h4>
-                    <div id="timelineChart" class="chart-container"></div>
+                <!-- Final Summary -->
+                <div id="resultFinalSummary" class="mb-6">
+                    <h3 class="font-semibold text-lg mb-2 text-gray-700">최종 종합 기술</h3>
+                    <div id="finalSummaryContent" class="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-800 whitespace-pre-line">
+                    </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- Error State -->
-        <div id="errorState" class="state-content error-message" style="display: none;">
-            <div class="error-content">
-                <div class="error-icon">⚠️</div>
-                <h3 id="errorTitle">오류 발생</h3>
-                <p id="errorMessage"></p>
-                <button id="retryBtn" class="btn-primary">다시 시도</button>
             </div>
         </div>
     </main>
 
-    <!-- File Input (Hidden) -->
-    <input type="file" id="fileInput" accept="video/mp4,video/quicktime,video/x-msvideo,video/x-matroska"
-        style="display: none;">
-
-    <!-- Modal for errors -->
-    <div id="errorModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h3 id="modalTitle">오류</h3>
-            <p id="modalMessage"></p>
-            <div class="modal-actions">
-                <button id="modalClose" class="btn-secondary">닫기</button>
-            </div>
+    <!-- Error Modal -->
+    <div id="errorModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 id="errorTitle" class="text-xl font-bold mb-4 text-red-600">오류</h3>
+            <p id="errorMessage" class="text-gray-700 mb-6"></p>
+            <button id="errorCloseBtn" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
+                확인
+            </button>
         </div>
     </div>
 
-    <!-- TypeScript (compiled to JavaScript) -->
-    <script type="module" src="dist/main.js?v=2"></script>
+    <!-- Scripts -->
+    <script type="module" src="js/api.js"></script>
+    <script type="module" src="js/utils/csvExporter.js"></script>
+    <script type="module" src="js/app.js"></script>
 </body>
-
 </html>
+

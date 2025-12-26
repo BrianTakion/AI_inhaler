@@ -372,7 +372,7 @@ Q7_Confidence: [0.0 to 1.0, indicating your confidence level in the answer]
         final_start_time = start_time
         
         while start_time <= play_time - segment_time:
-            print(f'  검색 중... start_time={start_time:.1f}초')
+            print(f'[{self.model_name}] 검색 중... start_time={start_time:.1f}초')
             end_time = start_time + segment_time
             
             # 프레임 추출

@@ -1,0 +1,292 @@
+/* Custom Styles for Inhaler Analysis System */
+
+/* Navigation Button Styles */
+.nav-btn {
+    @apply px-4 py-2 rounded-lg font-semibold transition-all duration-200;
+    @apply border text-white;
+    @apply hover:opacity-90;
+    @apply disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:border-gray-300;
+    @apply disabled:hover:opacity-100;
+}
+
+.nav-btn:not(:disabled) {
+    @apply shadow-md hover:shadow-lg;
+}
+
+/* Button 1: 기기 선택 - 파란색 */
+.nav-btn-device {
+    @apply bg-blue-500 border-blue-600;
+}
+
+.nav-btn-device:hover:not(:disabled) {
+    @apply bg-blue-600;
+}
+
+/* Button 2: 분석할 파일 - 초록색 */
+.nav-btn-file {
+    @apply bg-green-500 border-green-600;
+}
+
+.nav-btn-file:hover:not(:disabled) {
+    @apply bg-green-600;
+}
+
+/* Button 3: 분석 시작 - 주황색 */
+.nav-btn-analysis {
+    @apply bg-orange-500 border-orange-600;
+}
+
+.nav-btn-analysis:hover:not(:disabled) {
+    @apply bg-orange-600;
+}
+
+/* Button 4: 결과 저장 - 보라색 */
+.nav-btn-save {
+    @apply bg-purple-500 border-purple-600;
+}
+
+.nav-btn-save:hover:not(:disabled) {
+    @apply bg-purple-600;
+}
+
+/* Dropdown Menu Styles */
+.dropdown-menu {
+    @apply absolute top-full left-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-lg;
+    @apply min-w-[500px] max-h-96 overflow-y-auto z-50;
+}
+
+.dropdown-item {
+    @apply px-4 py-3 border-b border-gray-200 cursor-pointer;
+    @apply transition-colors duration-150;
+}
+
+.dropdown-item:last-child {
+    @apply border-b-0;
+}
+
+/* Device-specific background colors - 보색 관계로 재배치하여 가독성 향상 */
+/* 1. pMDI_type1: 파란색 (보색: 주황색) */
+.dropdown-item.device-pmdi1 {
+    background: linear-gradient(to right, rgb(239 246 255), rgb(219 234 254));
+    border-left: 5px solid rgb(37 99 235);
+    border-right: 2px solid rgb(191 219 254);
+}
+
+.dropdown-item.device-pmdi1:hover {
+    background: linear-gradient(to right, rgb(219 234 254), rgb(191 219 254));
+    border-left: 5px solid rgb(29 78 216);
+}
+
+/* 2. pMDI_type2: 주황색 (보색: 파란색) */
+.dropdown-item.device-pmdi2 {
+    background: linear-gradient(to right, rgb(255 247 237), rgb(255 237 213));
+    border-left: 5px solid rgb(249 115 22);
+    border-right: 2px solid rgb(254 215 170);
+}
+
+.dropdown-item.device-pmdi2:hover {
+    background: linear-gradient(to right, rgb(255 237 213), rgb(254 215 170));
+    border-left: 5px solid rgb(234 88 12);
+}
+
+/* 3. DPI_type1: 초록색 (보색: 분홍색) */
+.dropdown-item.device-dpi1 {
+    background: linear-gradient(to right, rgb(240 253 244), rgb(220 252 231));
+    border-left: 5px solid rgb(22 163 74);
+    border-right: 2px solid rgb(187 247 208);
+}
+
+.dropdown-item.device-dpi1:hover {
+    background: linear-gradient(to right, rgb(220 252 231), rgb(187 247 208));
+    border-left: 5px solid rgb(21 128 61);
+}
+
+/* 4. DPI_type2: 분홍색 (보색: 초록색) */
+.dropdown-item.device-dpi2 {
+    background: linear-gradient(to right, rgb(253 244 255), rgb(250 232 255));
+    border-left: 5px solid rgb(219 39 119);
+    border-right: 2px solid rgb(244 114 182);
+}
+
+.dropdown-item.device-dpi2:hover {
+    background: linear-gradient(to right, rgb(250 232 255), rgb(244 114 182));
+    border-left: 5px solid rgb(190 24 93);
+}
+
+/* 5. DPI_type3: 청록색 (보색: 빨간색) */
+.dropdown-item.device-dpi3 {
+    background: linear-gradient(to right, rgb(236 254 255), rgb(207 250 254));
+    border-left: 5px solid rgb(6 182 212);
+    border-right: 2px solid rgb(165 243 252);
+}
+
+.dropdown-item.device-dpi3:hover {
+    background: linear-gradient(to right, rgb(207 250 254), rgb(165 243 252));
+    border-left: 5px solid rgb(8 145 178);
+}
+
+/* 6. SMI_type1: 보라색 (보색: 노란색) */
+.dropdown-item.device-smi1 {
+    background: linear-gradient(to right, rgb(250 245 255), rgb(243 232 255));
+    border-left: 5px solid rgb(147 51 234);
+    border-right: 2px solid rgb(233 213 255);
+}
+
+.dropdown-item.device-smi1:hover {
+    background: linear-gradient(to right, rgb(243 232 255), rgb(233 213 255));
+    border-left: 5px solid rgb(126 34 206);
+}
+
+/* Device type name styling - 20% larger and bold */
+.device-type {
+    display: inline-block;
+    font-size: 1.2em;
+    font-weight: 700;
+    color: rgb(17 24 39);
+    margin-right: 0.5rem;
+}
+
+/* Device type name styling - 20% larger and bold */
+.device-type {
+    display: inline-block;
+    font-size: 1.2em;
+    font-weight: 700;
+    color: rgb(17 24 39);
+    margin-right: 0.5rem;
+}
+
+.device-name {
+    display: inline-block;
+    font-size: 0.95em;
+    font-weight: 600;
+    color: rgb(55 65 81);
+    margin-bottom: 0.25rem;
+}
+
+.device-desc {
+    @apply block text-sm text-gray-600;
+    margin-top: 0.25rem;
+}
+
+/* Upload Container */
+.upload-container {
+    @apply bg-white border-2 border-dashed border-gray-300 rounded-lg;
+    @apply transition-all duration-300;
+}
+
+.upload-container:hover {
+    @apply border-blue-400 bg-blue-50;
+}
+
+.upload-icon {
+    @apply text-blue-500;
+}
+
+/* Progress Bar Animation */
+#progressFill {
+    transition: width 0.3s ease-in-out;
+}
+
+/* Action Step Card */
+.action-step-card {
+    @apply bg-white border border-gray-200 rounded-lg p-4 shadow-sm;
+    @apply transition-all duration-200 hover:shadow-md;
+}
+
+.action-step-card.pass {
+    @apply border-l-4 border-l-green-500;
+}
+
+.action-step-card.fail {
+    @apply border-l-4 border-l-red-500;
+}
+
+.action-step-header {
+    @apply flex items-center justify-between mb-2;
+}
+
+.action-step-number {
+    @apply inline-flex items-center justify-center w-8 h-8 rounded-full;
+    @apply bg-blue-100 text-blue-700 font-bold text-sm;
+}
+
+.action-step-name {
+    @apply font-semibold text-gray-900 flex-1 ml-3;
+}
+
+.action-step-result {
+    @apply px-3 py-1 rounded-full text-sm font-semibold;
+}
+
+.action-step-result.pass {
+    @apply bg-green-100 text-green-800;
+}
+
+.action-step-result.fail {
+    @apply bg-red-100 text-red-800;
+}
+
+.action-step-body {
+    @apply text-sm text-gray-700;
+}
+
+.action-step-details {
+    @apply flex space-x-4 mt-2 text-xs text-gray-600;
+}
+
+/* Log Entry */
+.log-entry {
+    @apply text-sm py-1 px-2 rounded;
+}
+
+.log-entry.info {
+    @apply text-gray-700;
+}
+
+.log-entry.success {
+    @apply text-green-700 bg-green-50;
+}
+
+.log-entry.error {
+    @apply text-red-700 bg-red-50;
+}
+
+/* Scrollbar Styling */
+.overflow-y-auto::-webkit-scrollbar {
+    width: 8px;
+}
+
+.overflow-y-auto::-webkit-scrollbar-track {
+    @apply bg-gray-100 rounded;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400;
+}
+
+/* Action Steps Compact Spacing */
+.action-steps-compact {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem; /* space-y-0.5의 절반 (2px) */
+}
+
+.action-steps-compact > div {
+    padding: 0.125rem 0; /* py-0.5의 절반 */
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .dropdown-menu {
+        @apply min-w-full left-0 right-0;
+    }
+    
+    .nav-btn {
+        @apply text-xs px-2 py-1;
+    }
+}
+

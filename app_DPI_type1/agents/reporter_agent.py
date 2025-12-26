@@ -88,9 +88,9 @@ class ReporterAgent:
             num_models = len(model_results)
             print(f"\n[{self.name}] {num_models}개 모델 결과 처리 중...")
             
-                video_info = state["video_info"]
+            video_info = state["video_info"]
             save_individual_report_flag = state.get("save_individual_report", False)
-                timestamp_suffix = datetime.now().strftime("%m%d_%H%M")
+            timestamp_suffix = datetime.now().strftime("%m%d_%H%M")
             
             # 1. 각 agent에 대해 개별 판정 규칙 적용
             individual_agent_decisions = {}
@@ -120,11 +120,11 @@ class ReporterAgent:
                     if visualization_fig:
                         # HTML 파일로 저장
                         html_filename = f"visualization_{model_id}_{video_info['video_name']}_{timestamp_suffix}.html"
-                html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), html_filename)
-                visualization_fig.write_html(html_path)
-                
+                        html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), html_filename)
+                        visualization_fig.write_html(html_path)
+                        
                         print(f"[{self.name}] {model_id} 시각화 HTML 파일 저장됨:")
-                print(f"  파일 경로: {html_path}")
+                        print(f"  파일 경로: {html_path}")
             
             # 3. 복수 agent 판정 규칙 적용
             final_decisions = self._apply_multi_agent_rule(individual_agent_decisions)
@@ -529,13 +529,13 @@ class ReporterAgent:
             for time_val, conf_list in all_confidence.items():
                 avg_confidence[time_val] = sum(conf_list) / len(conf_list) if conf_list else 0.5
             
-                    action_analysis[action_key] = {
+            action_analysis[action_key] = {
                 'action_description': action_description or '',
                 'detected_times': sorted(set(all_yes_times)),
                 'not_detected_times': sorted(set(all_no_times)),
                 'confidence': avg_confidence,
                 'total_detections': len(set(all_yes_times))
-                    }
+            }
         
         # 최종 종합 기술 생성
         final_summary = self._generate_final_summary(
