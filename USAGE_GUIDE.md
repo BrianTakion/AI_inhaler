@@ -4,26 +4,26 @@
 
 ---
 
-## 1. main_app.py
+## 1. app_main.py
 
 ### 개요
-`main_app.py`는 통합 흡입기 비디오 분석 애플리케이션으로, 여러 디바이스 타입에 대해 통합적으로 분석을 수행합니다. 이 스크립트는 직접 실행하여 비디오 분석을 수행할 수 있습니다.
+`app_main.py`는 통합 흡입기 비디오 분석 애플리케이션으로, 여러 디바이스 타입에 대해 통합적으로 분석을 수행합니다. 이 스크립트는 직접 실행하여 비디오 분석을 수행할 수 있습니다.
 
 ### 위치
 ```
-app_common/main_app.py
+app_server/app_main.py
 ```
 
 ### 사용법
 
 #### 기본 실행
 ```bash
-cd app_common
-python main_app.py
+cd app_server
+python app_main.py
 ```
 
 #### 설정 변경
-`main_app.py` 파일 내부의 `main()` 함수에서 다음 변수들을 수정할 수 있습니다:
+`app_main.py` 파일 내부의 `main()` 함수에서 다음 변수들을 수정할 수 있습니다:
 
 ```python
 # 비디오 파일 경로
@@ -56,7 +56,7 @@ save_individual_report = True  # True: 저장, False: 저장하지 않기
 `.env` 파일에 API 키를 설정해야 합니다:
 
 ```bash
-# app_common/.env 파일
+# app_server/.env 파일
 OPENAI_API_KEY=your-openai-api-key
 GOOGLE_API_KEY=your-google-api-key
 ```
@@ -105,18 +105,18 @@ LLM 모델 초기화 (2개):
 ## 2. test_api_server.py
 
 ### 개요
-`test_api_server.py`는 API 서버의 완전한 분석 플로우를 테스트하는 스크립트입니다. `main_app.py`의 설정을 기반으로 전체 분석 플로우를 테스트하고 최종 결과를 검증합니다.
+`test_api_server.py`는 API 서버의 완전한 분석 플로우를 테스트하는 스크립트입니다. `app_main.py`의 설정을 기반으로 전체 분석 플로우를 테스트하고 최종 결과를 검증합니다.
 
 ### 위치
 ```
-app_common/test_api_server.py
+app_server/test_api_server.py
 ```
 
 ### 사용법
 
 #### 기본 실행
 ```bash
-cd app_common
+cd app_server
 python test_api_server.py
 ```
 
@@ -124,7 +124,7 @@ python test_api_server.py
 API 서버가 실행 중이어야 합니다:
 ```bash
 # 별도 터미널에서 API 서버 실행
-cd app_common
+cd app_server
 python api_server.py
 ```
 
@@ -151,7 +151,7 @@ TEST_CONFIG = {
 5. **분석 진행 상태 모니터링**: 분석이 완료될 때까지 상태를 주기적으로 확인 (최대 30분)
 6. **분석 결과 조회**: 완료된 분석 결과 조회
 7. **결과 데이터 검증**: 필수 필드 및 데이터 형식 검증
-8. **main_app.py 출력 형식과 비교**: `main_app.py`의 출력 형식과 비교
+8. **app_main.py 출력 형식과 비교**: `app_main.py`의 출력 형식과 비교
 9. **결과 저장**: 테스트 결과를 `test_analysis_result.json` 파일로 저장
 
 #### 예시 출력
@@ -224,7 +224,7 @@ chmod +x start.sh
 
 #### 실행 과정
 1. 기존 프로세스 정리: 실행 중인 API 서버 및 HTTP 서버 프로세스 종료
-2. 백엔드 서버 시작: `app_common/api_server.py` 실행 (포트 8000)
+2. 백엔드 서버 시작: `app_server/api_server.py` 실행 (포트 8000)
 3. 백엔드 서버 상태 확인: 서버가 정상적으로 시작되었는지 확인
 4. 프론트엔드 서버 시작: `webUX` 디렉토리에서 Python HTTP 서버 실행 (포트 8080)
 5. 프론트엔드 서버 상태 확인: 서버가 정상적으로 시작되었는지 확인
@@ -388,19 +388,19 @@ PID 파일에서 프로세스 확인 중...
 
 ### 시나리오 2: 직접 스크립트 실행
 ```bash
-# 1. main_app.py 직접 실행
-cd app_common
-python main_app.py
+# 1. app_main.py 직접 실행
+cd app_server
+python app_main.py
 ```
 
 ### 시나리오 3: API 서버 테스트
 ```bash
 # 1. API 서버 시작 (별도 터미널)
-cd app_common
+cd app_server
 python api_server.py
 
 # 2. 테스트 실행 (다른 터미널)
-cd app_common
+cd app_server
 python test_api_server.py
 
 # 3. API 서버 종료 (Ctrl+C)
@@ -412,7 +412,7 @@ python test_api_server.py
 ./start.sh
 
 # 2. API 테스트 (다른 터미널)
-cd app_common
+cd app_server
 python test_api_server.py
 
 # 3. 서버 종료
@@ -456,7 +456,7 @@ lsof -ti:8080 | xargs kill -9
 ## 추가 정보
 
 - 프로젝트 루트: `/workspaces/AI_inhaler`
-- 백엔드 디렉토리: `app_common/`
+- 백엔드 디렉토리: `app_server/`
 - 프론트엔드 디렉토리: `webUX/`
 - 로그 디렉토리: `logs/`
 - PID 파일: `.server_pids` (프로젝트 루트)

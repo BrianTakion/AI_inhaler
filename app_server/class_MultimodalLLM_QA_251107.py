@@ -448,9 +448,9 @@ class multimodalLLM:
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
-    # app_common 디렉토리의 .env 파일에서 환경변수 로드
-    app_common_dir = os.path.dirname(os.path.abspath(__file__))
-    env_path = os.path.join(app_common_dir, ".env")
+    # app_server 디렉토리의 .env 파일에서 환경변수 로드
+    app_server_dir = os.path.dirname(os.path.abspath(__file__))
+    env_path = os.path.join(app_server_dir, ".env")
     load_dotenv(dotenv_path=env_path)
     
     # API 키 로드
@@ -459,11 +459,11 @@ if __name__ == "__main__":
 
     if not openai_api_key:
         print("경고: OPENAI_API_KEY 환경변수가 설정되지 않았습니다.")
-        print("app_common 디렉토리의 .env 파일에 'OPENAI_API_KEY=your-api-key-here' 형식으로 추가하세요.")
+        print("app_server 디렉토리의 .env 파일에 'OPENAI_API_KEY=your-api-key-here' 형식으로 추가하세요.")
     
     if not google_api_key:
         print("경고: GOOGLE_API_KEY 환경변수가 설정되지 않았습니다.")
-        print("app_common 디렉토리의 .env 파일에 'GOOGLE_API_KEY=your-api-key-here' 형식으로 추가하세요.")
+        print("app_server 디렉토리의 .env 파일에 'GOOGLE_API_KEY=your-api-key-here' 형식으로 추가하세요.")
     
     # 다양한 모델 테스트
     test_models = [

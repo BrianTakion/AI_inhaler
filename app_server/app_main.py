@@ -14,9 +14,9 @@ from dotenv import load_dotenv
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
-# app_common 디렉토리의 .env 파일 로드
-app_common_dir = os.path.dirname(os.path.abspath(__file__))
-env_path = os.path.join(app_common_dir, ".env")
+# app_server 디렉토리의 .env 파일 로드
+app_server_dir = os.path.dirname(os.path.abspath(__file__))
+env_path = os.path.join(app_server_dir, ".env")
 load_dotenv(dotenv_path=env_path)
 
 # API 키 로드
@@ -107,7 +107,7 @@ def run_device_analysis(device_type: str, video_path: str, llm_models: list, sav
         # 해당 디바이스의 모듈 import
         from agents.state import create_initial_state
         from graph_workflow import create_workflow
-        from app_common import class_MultimodalLLM_QA_251107 as mLLM
+        from app_server import class_MultimodalLLM_QA_251107 as mLLM
         
         print(f"LLM 모델 초기화 ({len(llm_models)}개):")
         for idx, model_name in enumerate(llm_models):

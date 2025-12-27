@@ -15,13 +15,13 @@ from datetime import datetime
 from dotenv import load_dotenv
 from .state import VideoAnalysisState
 
-# app_common 모듈 경로 추가 (상위 2단계 디렉토리)
+# app_server 모듈 경로 추가 (상위 2단계 디렉토리)
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), '..'))
-from app_common import class_MultimodalLLM_QA_251107 as mLLM
+from app_server import class_MultimodalLLM_QA_251107 as mLLM
 
-# .env 파일 로드 (app_common 디렉토리)
-app_common_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'app_common')
-env_path = os.path.join(app_common_dir, ".env")
+# .env 파일 로드 (app_server 디렉토리)
+app_server_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'app_server')
+env_path = os.path.join(app_server_dir, ".env")
 load_dotenv(dotenv_path=env_path)
 
 # class_PromptBank_DPI_type2 import
@@ -107,11 +107,9 @@ class ReporterAgent:
                 
                 # 2. 개별 agent 시각화 생성 (save_individual_report_flag가 True일 때만)
                 if save_individual_report_flag:
-                    # model_id에서 model_name 추출 (예: "gpt-4o_0" -> "gpt-4o")
-                    model_name = result.get("model_name", model_id.split("_")[0] if "_" in model_id else model_id)
                     visualization_fig = self._create_individual_agent_visualization(
                         model_id=model_id,
-                        model_name=model_name,
+                        model_name=model_id,
                         reference_times=reference_times,
                         promptbank_data=promptbank_data,
                         video_info=video_info,

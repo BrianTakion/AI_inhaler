@@ -5,7 +5,7 @@ set -e
 
 # 프로젝트 루트 디렉토리
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
-BACKEND_DIR="${PROJECT_ROOT}/app_common"
+BACKEND_DIR="${PROJECT_ROOT}/app_server"
 FRONTEND_DIR="${PROJECT_ROOT}/webUX"
 
 # PID 파일 경로

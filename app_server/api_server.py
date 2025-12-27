@@ -24,8 +24,8 @@ from pydantic import BaseModel, Field
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
-# main_app 모듈 import
-from app_common import main_app
+# app_main 모듈 import, app_main.run_device_analysis() 함수 사용
+from app_server import app_main
 
 # 고정된 LLM 모델 설정
 # "gpt-4.1", "gpt-5-nano", "gpt-5.1", "gpt-5.2"
@@ -225,7 +225,7 @@ async def run_analysis_async(
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             None,
-            lambda: main_app.run_device_analysis(
+            lambda: app_main.run_device_analysis(
                 device_type=device_type,
                 video_path=video_path,
                 llm_models=llm_models,

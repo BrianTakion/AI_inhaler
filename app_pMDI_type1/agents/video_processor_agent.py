@@ -8,10 +8,10 @@ Video Processor Agent
 
 import sys
 import os
-# app_common 모듈 경로 추가 (상위 2단계 디렉토리)
+# app_server 모듈 경로 추가 (상위 2단계 디렉토리)
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), '..'))
 
-from app_common import class_Media_Edit_251107 as ME
+from app_server import class_Media_Edit_251107 as ME
 from .state import VideoAnalysisState
 
 

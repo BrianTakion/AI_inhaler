@@ -10,12 +10,12 @@ import os
 import sys
 from dotenv import load_dotenv
 
-# app_common 모듈 경로 추가
+# app_server 모듈 경로 추가
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-# app_common 디렉토리의 .env 파일 로드
-app_common_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'app_common')
-env_path = os.path.join(app_common_dir, ".env")
+# app_server 디렉토리의 .env 파일 로드
+app_server_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'app_server')
+env_path = os.path.join(app_server_dir, ".env")
 load_dotenv(dotenv_path=env_path)
 
 # API 키 로드
@@ -26,7 +26,7 @@ google_api_key = os.getenv("GOOGLE_API_KEY")
 # OpenAI 모델 사용 시 openai_api_key 필요
 # Google Gemini 모델 사용 시 google_api_key 필요
 
-from app_common import class_MultimodalLLM_QA_251107 as mLLM
+from app_server import class_MultimodalLLM_QA_251107 as mLLM
 from agents.state import create_initial_state
 from graph_workflow import create_workflow
 

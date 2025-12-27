@@ -3,7 +3,7 @@
 
 """
 API 서버 완전 분석 테스트
-main_app.py의 설정을 기반으로 전체 분석 플로우를 테스트하고 최종 결과를 검증합니다.
+app_main.py의 설정을 기반으로 전체 분석 플로우를 테스트하고 최종 결과를 검증합니다.
 """
 
 import requests
@@ -52,11 +52,11 @@ class APIAnalysisTester:
             print()
             print("해결 방법:")
             print("  1. 서버를 시작하세요:")
-            print("     cd app_common")
+            print("     cd app_server")
             print("     python api_server.py")
             print()
             print("  2. 또는 백그라운드로 실행:")
-            print("     cd app_common")
+            print("     cd app_server")
             print("     python api_server.py > /tmp/api_server.log 2>&1 &")
             print()
             print("  3. 서버가 실행 중인지 확인:")
@@ -373,9 +373,9 @@ class APIAnalysisTester:
             return False
     
     def compare_with_main_app_output(self) -> bool:
-        """main_app.py의 print_analysis_summary 출력과 비교"""
+        """app_main.py의 print_analysis_summary 출력과 비교"""
         print("\n" + "=" * 80)
-        print("8. main_app.py 출력 형식과 비교")
+        print("8. app_main.py 출력 형식과 비교")
         print("=" * 80)
         
         if not self.final_result:
@@ -457,7 +457,7 @@ class APIAnalysisTester:
         if not self.validate_result():
             return False
         
-        # 8. main_app.py 출력 형식과 비교
+        # 8. app_main.py 출력 형식과 비교
         self.compare_with_main_app_output()
         
         # 9. 결과 저장
