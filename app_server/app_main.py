@@ -8,6 +8,7 @@
 
 import os
 import sys
+import importlib.util
 from dotenv import load_dotenv
 
 # 프로젝트 루트 경로 추가
@@ -105,15 +106,126 @@ def run_device_analysis(device_type: str, video_path: str, llm_models: list, sav
         print(f"❌ 오류: {app_dir} 디렉토리가 존재하지 않습니다.")
         return None
     
-    # 해당 디렉토리로 sys.path 추가
+    # importlib.util을 사용하여 모듈을 파일 경로로 직접 로드 (캐싱 문제 방지)
+    # 고유한 모듈 이름 사용 (device_type 포함하여 충돌 방지)
+    module_prefix = f"app_{device_type.replace('-', '_')}"
+    
+    # 다른 app_* 경로들을 sys.path에서 임시 제거하여 경쟁 조건 방지
+    # 모듈 로드 시 올바른 디바이스 타입의 모듈만 사용하도록 보장
+    original_sys_path = sys.path.copy()
+    other_app_paths = [p for p in sys.path if os.path.basename(p).startswith('app_') and p != app_dir]
+    for path in other_app_paths:
+        if path in sys.path:
+            sys.path.remove(path)
+    
+    # agents 모듈의 상대 import를 지원하기 위해 app_dir을 sys.path 맨 앞에 추가
     if app_dir not in sys.path:
+        sys.path.insert(0, app_dir)
+    elif sys.path.index(app_dir) != 0:
+        # 이미 있지만 맨 앞이 아니면 맨 앞으로 이동
+        sys.path.remove(app_dir)
         sys.path.insert(0, app_dir)
     
     try:
-        # 해당 디바이스의 모듈 import
-        from agents.state import create_initial_state
-        from graph_workflow import create_workflow
+        # 1. agents.state 모듈 로드
+        agents_state_path = os.path.join(app_dir, "agents", "state.py")
+        if not os.path.exists(agents_state_path):
+            raise FileNotFoundError(f"agents/state.py 파일을 찾을 수 없습니다: {agents_state_path}")
+        
+        agents_state_spec = importlib.util.spec_from_file_location(
+            f"{module_prefix}.agents.state", 
+            agents_state_path
+        )
+        agents_state_module = importlib.util.module_from_spec(agents_state_spec)
+        # 고유한 모듈 이름과 일반 이름 모두 등록
+        # graph_workflow가 "from agents.state import ..."를 사용할 수 있도록
+        sys.modules[f"{module_prefix}.agents.state"] = agents_state_module
+        sys.modules["agents.state"] = agents_state_module
+        agents_state_spec.loader.exec_module(agents_state_module)
+        create_initial_state = agents_state_module.create_initial_state
+        
+        # graph_workflow가 agents 모듈을 import하기 전에 기존 agents 모듈 캐시 제거
+        # graph_workflow는 "from agents.xxx import ..."를 사용하므로, 
+        # sys.modules에 있는 기존 agents 모듈들이 재사용되지 않도록 제거
+        agents_modules_to_remove = []
+        for module_name in list(sys.modules.keys()):
+            # agents 패키지와 관련된 모든 모듈 제거
+            # 단, 방금 로드한 module_prefix.agents.state는 제외
+            if (module_name.startswith('agents.') or 
+                module_name == 'agents' or
+                (module_name.startswith('app_') and 'agents' in module_name and module_name != f"{module_prefix}.agents.state")):
+                agents_modules_to_remove.append(module_name)
+        
+        for module_name in agents_modules_to_remove:
+            del sys.modules[module_name]
+        
+        # sys.path 격리 상태 재확인 (graph_workflow 로드 전)
+        current_other_app_paths = [p for p in sys.path if os.path.basename(p).startswith('app_') and p != app_dir]
+        for path in current_other_app_paths:
+            if path in sys.path:
+                sys.path.remove(path)
+        
+        if app_dir not in sys.path or sys.path.index(app_dir) != 0:
+            if app_dir in sys.path:
+                sys.path.remove(app_dir)
+            sys.path.insert(0, app_dir)
+        
+        # agents 패키지 자체를 올바른 경로에서 미리 로드
+        # graph_workflow가 "from agents.xxx import ..."를 실행할 때 올바른 패키지를 사용하도록
+        agents_init_path = os.path.join(app_dir, "agents", "__init__.py")
+        if os.path.exists(agents_init_path):
+            # agents 패키지를 sys.modules에 등록 (graph_workflow의 import를 위해)
+            agents_pkg_spec = importlib.util.spec_from_file_location(
+                "agents",
+                agents_init_path
+            )
+            agents_pkg = importlib.util.module_from_spec(agents_pkg_spec)
+            sys.modules["agents"] = agents_pkg
+            sys.modules[f"{module_prefix}.agents"] = agents_pkg
+            agents_pkg_spec.loader.exec_module(agents_pkg)
+            
+            # agents의 하위 모듈들도 미리 로드하여 올바른 모듈이 사용되도록 보장
+            agents_modules = [
+                ("agents.reporter_agent", "reporter_agent.py"),
+                ("agents.video_processor_agent", "video_processor_agent.py"),
+                ("agents.video_analyzer_agent", "video_analyzer_agent.py"),
+            ]
+            
+            for module_name, filename in agents_modules:
+                module_path = os.path.join(app_dir, "agents", filename)
+                if os.path.exists(module_path):
+                    module_spec = importlib.util.spec_from_file_location(
+                        module_name,
+                        module_path
+                    )
+                    module = importlib.util.module_from_spec(module_spec)
+                    # 일반 이름과 고유한 이름 모두 등록
+                    sys.modules[module_name] = module
+                    sys.modules[f"{module_prefix}.{module_name}"] = module
+                    module_spec.loader.exec_module(module)
+        
+        # 2. graph_workflow 모듈 로드
+        # graph_workflow는 agents 모듈을 import하므로, sys.path 격리 상태에서 로드해야 함
+        graph_workflow_path = os.path.join(app_dir, "graph_workflow.py")
+        if not os.path.exists(graph_workflow_path):
+            raise FileNotFoundError(f"graph_workflow.py 파일을 찾을 수 없습니다: {graph_workflow_path}")
+        
+        graph_workflow_spec = importlib.util.spec_from_file_location(
+            f"{module_prefix}.graph_workflow",
+            graph_workflow_path
+        )
+        graph_workflow_module = importlib.util.module_from_spec(graph_workflow_spec)
+        # 고유한 모듈 이름으로 등록하여 다른 device_type과 충돌 방지
+        sys.modules[f"{module_prefix}.graph_workflow"] = graph_workflow_module
+        graph_workflow_spec.loader.exec_module(graph_workflow_module)
+        create_workflow = graph_workflow_module.create_workflow
+        
+        # 3. app_server 모듈은 공통이므로 일반 import 사용
         from app_server import class_MultimodalLLM_QA_251107 as mLLM
+        
+        print(f"[모듈 로드] {device_type} 모듈을 독립적으로 로드했습니다.")
+        print(f"  - agents.state: {agents_state_path}")
+        print(f"  - graph_workflow: {graph_workflow_path}")
         
         print(f"LLM 모델 초기화 ({len(llm_models)}개):")
         for idx, model_name in enumerate(llm_models):
@@ -150,10 +262,28 @@ def run_device_analysis(device_type: str, video_path: str, llm_models: list, sav
             save_individual_report=save_individual_report
         )
         
+        # app_dir 정보를 initial_state에 추가 (reporter_agent가 올바른 경로를 사용하도록)
+        # TypedDict에 없는 필드이지만 런타임에는 문제없음
+        initial_state["app_dir"] = app_dir
+        
         # 워크플로우 생성
         workflow = create_workflow(mllm_instances, llm_models)
         
-        # 워크플로우 실행
+        # 워크플로우 실행 전에 sys.path 격리 상태 확인 및 유지
+        # 다른 app_* 경로가 다시 추가되었는지 확인하고 제거
+        current_other_app_paths = [p for p in sys.path if os.path.basename(p).startswith('app_') and p != app_dir]
+        for path in current_other_app_paths:
+            if path in sys.path:
+                sys.path.remove(path)
+        
+        # app_dir이 맨 앞에 있는지 확인
+        if app_dir not in sys.path:
+            sys.path.insert(0, app_dir)
+        elif sys.path.index(app_dir) != 0:
+            sys.path.remove(app_dir)
+            sys.path.insert(0, app_dir)
+        
+        # 워크플로우 실행 (sys.path 격리 상태 유지)
         final_state = workflow.run(initial_state)
         
         # 결과 출력
@@ -181,9 +311,37 @@ def run_device_analysis(device_type: str, video_path: str, llm_models: list, sav
         traceback.print_exc()
         return None
     finally:
-        # sys.path에서 제거 (다음 디바이스 분석을 위해)
+        # 로드한 모듈을 sys.modules에서 제거 (메모리 정리 및 다음 요청을 위한 준비)
+        # 단, app_server 모듈은 공통이므로 제거하지 않음
+        modules_to_remove = [
+            f"{module_prefix}.agents.state",
+            f"{module_prefix}.graph_workflow"
+        ]
+        for module_name in modules_to_remove:
+            if module_name in sys.modules:
+                del sys.modules[module_name]
+        
+        # agents 패키지 관련 모듈도 제거 (상대 import로 로드된 모듈들)
+        agents_modules_to_remove = [
+            f"{module_prefix}.agents",
+            f"{module_prefix}.agents.video_processor_agent",
+            f"{module_prefix}.agents.video_analyzer_agent",
+            f"{module_prefix}.agents.reporter_agent",
+        ]
+        for module_name in agents_modules_to_remove:
+            if module_name in sys.modules:
+                del sys.modules[module_name]
+        
+        # sys.path 복원: 다른 app_* 경로들을 다시 추가
+        # 단, app_dir은 제거 (다음 요청을 위해)
         if app_dir in sys.path:
             sys.path.remove(app_dir)
+        
+        # 원래 있던 다른 app_* 경로들을 복원
+        for path in other_app_paths:
+            if path not in sys.path:
+                # 원래 위치에 가깝게 복원 (하지만 정확한 위치는 보장하지 않음)
+                sys.path.append(path)
 
 
 def main():
@@ -193,14 +351,14 @@ def main():
     # ========================================
     # 사용자 지정 변수
     # ========================================
-    video_path = r"/workspaces/AI_inhaler/app_SMI_type1/video_source/SMI-6 Respimat.MOV"
+    video_path = r"/workspaces/AI_inhaler/app_server/test_clip.mp4"
     device_list = ['pMDI_type1', 'pMDI_type2', 'DPI_type1', 'DPI_type2', 'DPI_type3', 'SMI_type1']
-    device_type = device_list[5]
+    device_type = device_list[1]
 
     # "gpt-4.1", "gpt-5-nano", "gpt-5.1", "gpt-5.2"
     # "gemini-2.5-pro", "gemini-3-flash-preview", "gemini-3-pro-preview"
     #set_llm_models = ['gpt-4.1', 'gpt-5.1', 'gemini-2.5-pro', 'gemini-3-flash-preview']
-    set_llm_models = ['gpt-5-nano', 'gpt-5-nano']
+    set_llm_models = ['gpt-4.1', 'gpt-4.1']
     save_individual_report = True  # 개별 리포트 저장 여부 (True: 저장, False: 저장하지 않기)
     
     result = run_device_analysis(

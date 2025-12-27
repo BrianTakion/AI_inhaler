@@ -1,15 +1,15 @@
 {
   "status": "completed",
-  "deviceType": "SMI_type1",
+  "deviceType": "pMDI_type2",
   "videoInfo": {
-    "fileName": "d42b40ad-4b35-4efa-9661-51ec303c7f8f",
-    "duration": 14.63,
+    "fileName": "ebb1fad8-4a41-4dec-a37c-54dfe7babfd8",
+    "duration": 5.07,
     "size": 0,
-    "resolution": "1920x1080",
+    "resolution": "1280x720",
     "type": "video/mp4",
-    "width": 1920,
-    "height": 1080,
-    "frameCount": 439
+    "width": 1280,
+    "height": 720,
+    "frameCount": 152
   },
   "referenceTimes": null,
   "actionSteps": [
@@ -28,13 +28,7 @@
         3.0,
         3.5,
         4.0,
-        4.5,
-        5.0,
-        5.5,
-        6.0,
-        6.5,
-        7.0,
-        7.5
+        4.5
       ],
       "score": [
         1
@@ -78,30 +72,6 @@
         ],
         [
           4.5,
-          1.0
-        ],
-        [
-          5.0,
-          1.0
-        ],
-        [
-          5.5,
-          1.0
-        ],
-        [
-          6.0,
-          1.0
-        ],
-        [
-          6.5,
-          1.0
-        ],
-        [
-          7.0,
-          1.0
-        ],
-        [
-          7.5,
           1.0
         ]
       ],
@@ -113,7 +83,6 @@
       "name": "remove_cover",
       "description": "Has the user removed the mouthpiece cover? (Consider the user removing the cover if the mouthpiece is visible when the inhaler is positioned near the mouth.)",
       "time": [
-        0.5,
         1.0,
         1.5,
         2.0,
@@ -121,13 +90,7 @@
         3.0,
         3.5,
         4.0,
-        4.5,
-        5.0,
-        5.5,
-        6.0,
-        6.5,
-        7.0,
-        7.5
+        4.5
       ],
       "score": [
         1
@@ -167,137 +130,21 @@
         ],
         [
           4.0,
-          0.8500000000000001
-        ],
-        [
-          4.5,
-          0.8500000000000001
-        ],
-        [
-          5.0,
-          0.9
-        ],
-        [
-          5.5,
-          0.9
-        ],
-        [
-          6.0,
-          0.9
-        ],
-        [
-          6.5,
-          0.9
-        ],
-        [
-          7.0,
-          0.9
-        ],
-        [
-          7.5,
-          0.9
-        ]
-      ],
-      "result": "pass"
-    },
-    {
-      "id": "load_dose",
-      "order": 3,
-      "name": "load_dose",
-      "description": "Is the user loading the medication? (Consider the user loading the medication if they are manipulating, twisting, or opening the inhaler.)",
-      "time": [
-        1.0,
-        1.5,
-        2.0,
-        2.5,
-        3.0,
-        3.5,
-        4.0,
-        4.5,
-        5.0,
-        5.5,
-        6.0,
-        6.5,
-        7.0
-      ],
-      "score": [
-        1
-      ],
-      "confidenceScore": [
-        [
-          0.0,
-          1.0
-        ],
-        [
-          0.5,
-          0.8500000000000001
-        ],
-        [
-          1.0,
-          0.5
-        ],
-        [
-          1.5,
-          0.9
-        ],
-        [
-          2.0,
-          0.95
-        ],
-        [
-          2.5,
-          0.9
-        ],
-        [
-          3.0,
-          0.9
-        ],
-        [
-          3.5,
-          0.9
-        ],
-        [
-          4.0,
           0.9
         ],
         [
           4.5,
           0.9
-        ],
-        [
-          5.0,
-          0.925
-        ],
-        [
-          5.5,
-          0.9
-        ],
-        [
-          6.0,
-          0.925
-        ],
-        [
-          6.5,
-          0.9
-        ],
-        [
-          7.0,
-          0.95
-        ],
-        [
-          7.5,
-          0.8
         ]
       ],
       "result": "pass"
     },
     {
       "id": "inspect_mouthpiece",
-      "order": 4,
+      "order": 3,
       "name": "inspect_mouthpiece",
       "description": "Is the user inspecting the mouthpiece? (Consider the user inspecting if they are gazing toward the mouthpiece.)",
       "time": [
-        0.5,
         1.0,
         1.5,
         2.0,
@@ -305,12 +152,7 @@
         3.0,
         3.5,
         4.0,
-        4.5,
-        5.0,
-        5.5,
-        6.0,
-        6.5,
-        7.0
+        4.5
       ],
       "score": [
         1
@@ -322,23 +164,23 @@
         ],
         [
           0.5,
-          0.8
+          0.9
         ],
         [
           1.0,
-          0.75
+          0.9
         ],
         [
           1.5,
-          0.8500000000000001
+          1.0
         ],
         [
           2.0,
-          0.925
+          0.9
         ],
         [
           2.5,
-          0.95
+          1.0
         ],
         [
           3.0,
@@ -350,46 +192,21 @@
         ],
         [
           4.0,
-          0.8500000000000001
+          1.0
         ],
         [
           4.5,
-          0.9
-        ],
-        [
-          5.0,
-          0.8500000000000001
-        ],
-        [
-          5.5,
-          0.8
-        ],
-        [
-          6.0,
-          0.8500000000000001
-        ],
-        [
-          6.5,
-          0.8500000000000001
-        ],
-        [
-          7.0,
-          0.8500000000000001
-        ],
-        [
-          7.5,
-          0.8
+          1.0
         ]
       ],
       "result": "pass"
     },
     {
       "id": "hold_inhaler",
-      "order": 5,
+      "order": 4,
       "name": "hold_inhaler",
       "description": "Is the user holding the inhaler upright?",
       "time": [
-        0.5,
         1.0,
         1.5,
         2.0,
@@ -397,13 +214,7 @@
         3.0,
         3.5,
         4.0,
-        4.5,
-        5.0,
-        5.5,
-        6.0,
-        6.5,
-        7.0,
-        7.5
+        4.5
       ],
       "score": [
         1
@@ -415,7 +226,7 @@
         ],
         [
           0.5,
-          0.9
+          0.8
         ],
         [
           1.0,
@@ -423,15 +234,15 @@
         ],
         [
           1.5,
-          0.8500000000000001
-        ],
-        [
-          2.0,
           0.9
         ],
         [
-          2.5,
+          2.0,
           0.8500000000000001
+        ],
+        [
+          2.5,
+          0.9
         ],
         [
           3.0,
@@ -443,54 +254,22 @@
         ],
         [
           4.0,
-          0.8
+          0.9
         ],
         [
           4.5,
-          0.8
-        ],
-        [
-          5.0,
-          0.925
-        ],
-        [
-          5.5,
-          0.8500000000000001
-        ],
-        [
-          6.0,
           0.9
-        ],
-        [
-          6.5,
-          0.9
-        ],
-        [
-          7.0,
-          0.9
-        ],
-        [
-          7.5,
-          1.0
         ]
       ],
       "result": "pass"
     },
     {
       "id": "exhale_before",
-      "order": 6,
+      "order": 5,
       "name": "exhale_before",
-      "description": "Is the user exhaling away from the inhaler? (Consider the user exhaling if the mouth moves, the head lowers, or the eyes gaze downward.)",
+      "description": "Is the user exhaling away from the inhaler? (Consider exhaling if the mouth moves, the head lowers, or the eyes gaze downward.)",
       "time": [
-        5.5,
-        7.5,
-        8.0,
-        8.5,
-        9.0,
-        12.0,
-        13.0,
-        13.5,
-        14.0
+        3.5
       ],
       "score": [
         1
@@ -506,19 +285,19 @@
         ],
         [
           1.0,
-          0.4
-        ],
-        [
-          1.5,
-          1.0
-        ],
-        [
-          2.0,
           0.8
         ],
         [
-          2.5,
+          1.5,
+          0.8
+        ],
+        [
+          2.0,
           0.9
+        ],
+        [
+          2.5,
+          0.8
         ],
         [
           3.0,
@@ -526,90 +305,14 @@
         ],
         [
           3.5,
-          0.75
+          0.8
         ],
         [
           4.0,
-          1.0
+          0.8
         ],
         [
           4.5,
-          0.85
-        ],
-        [
-          5.0,
-          0.75
-        ],
-        [
-          5.5,
-          0.85
-        ],
-        [
-          6.0,
-          0.8
-        ],
-        [
-          6.5,
-          0.75
-        ],
-        [
-          7.0,
-          0.8
-        ],
-        [
-          7.5,
-          0.9
-        ],
-        [
-          8.0,
-          0.8
-        ],
-        [
-          8.5,
-          0.45
-        ],
-        [
-          9.0,
-          0.45
-        ],
-        [
-          9.5,
-          0.1
-        ],
-        [
-          10.0,
-          0.1
-        ],
-        [
-          10.5,
-          0.1
-        ],
-        [
-          11.0,
-          0.1
-        ],
-        [
-          11.5,
-          0.5
-        ],
-        [
-          12.0,
-          0.9
-        ],
-        [
-          12.5,
-          1.0
-        ],
-        [
-          13.0,
-          0.9
-        ],
-        [
-          13.5,
-          0.95
-        ],
-        [
-          14.0,
           1.0
         ]
       ],
@@ -617,163 +320,41 @@
     },
     {
       "id": "seal_lips",
-      "order": 7,
+      "order": 6,
       "name": "seal_lips",
       "description": "Is the user placing their mouth on the mouthpiece of the inhaler?",
-      "time": [
-        7.5,
-        8.0,
-        8.5,
-        9.0,
-        9.5,
-        10.0,
-        10.5,
-        11.0
-      ],
+      "time": [],
       "score": [
-        1
+        0
       ],
       "confidenceScore": [
         [
-          7.5,
-          1.0
-        ],
-        [
-          8.0,
-          1.0
-        ],
-        [
-          8.5,
-          1.0
-        ],
-        [
-          9.0,
-          1.0
-        ],
-        [
-          9.5,
-          1.0
-        ],
-        [
-          10.0,
-          1.0
-        ],
-        [
-          10.5,
-          1.0
-        ],
-        [
-          11.0,
-          1.0
-        ],
-        [
-          11.5,
-          0.55
-        ],
-        [
-          12.0,
-          1.0
-        ],
-        [
-          12.5,
-          1.0
-        ],
-        [
-          13.0,
-          1.0
-        ],
-        [
-          13.5,
-          1.0
-        ],
-        [
-          14.0,
+          4.5,
           1.0
         ]
       ],
-      "result": "pass"
+      "result": "fail"
     },
     {
       "id": "inhale_deeply",
-      "order": 8,
+      "order": 7,
       "name": "inhale_deeply",
       "description": "Is the user inhaling from the inhaler? (Consider the user inhaling if the inhaler is in their mouth and they appear to be sucking on it.)",
-      "time": [
-        7.5,
-        8.0,
-        8.5,
-        9.0,
-        9.5,
-        10.0,
-        10.5,
-        11.0
-      ],
+      "time": [],
       "score": [
-        1
+        0
       ],
       "confidenceScore": [
         [
-          7.5,
-          0.9
-        ],
-        [
-          8.0,
-          0.9
-        ],
-        [
-          8.5,
-          0.9
-        ],
-        [
-          9.0,
-          0.9
-        ],
-        [
-          9.5,
-          0.9
-        ],
-        [
-          10.0,
-          0.9
-        ],
-        [
-          10.5,
-          0.9
-        ],
-        [
-          11.0,
-          0.9
-        ],
-        [
-          11.5,
-          0.55
-        ],
-        [
-          12.0,
-          1.0
-        ],
-        [
-          12.5,
-          1.0
-        ],
-        [
-          13.0,
-          1.0
-        ],
-        [
-          13.5,
-          1.0
-        ],
-        [
-          14.0,
+          4.5,
           1.0
         ]
       ],
-      "result": "pass"
+      "result": "fail"
     },
     {
       "id": "remove_inhaler",
-      "order": 9,
+      "order": 8,
       "name": "remove_inhaler",
       "description": "Is the user removing the inhaler from their mouth?",
       "time": [],
@@ -782,59 +363,7 @@
       ],
       "confidenceScore": [
         [
-          7.5,
-          0.8
-        ],
-        [
-          8.0,
-          1.0
-        ],
-        [
-          8.5,
-          0.55
-        ],
-        [
-          9.0,
-          0.39999999999999997
-        ],
-        [
-          9.5,
-          0.1
-        ],
-        [
-          10.0,
-          0.1
-        ],
-        [
-          10.5,
-          0.1
-        ],
-        [
-          11.0,
-          0.1
-        ],
-        [
-          11.5,
-          0.55
-        ],
-        [
-          12.0,
-          1.0
-        ],
-        [
-          12.5,
-          1.0
-        ],
-        [
-          13.0,
-          1.0
-        ],
-        [
-          13.5,
-          1.0
-        ],
-        [
-          14.0,
+          4.5,
           1.0
         ]
       ],
@@ -842,7 +371,7 @@
     },
     {
       "id": "hold_breath",
-      "order": 10,
+      "order": 9,
       "name": "hold_breath",
       "description": "Is the user holding their breath? (Consider the user holding their breath if their mouth stays closed for a while.)",
       "time": [],
@@ -851,59 +380,7 @@
       ],
       "confidenceScore": [
         [
-          7.5,
-          0.7
-        ],
-        [
-          8.0,
-          1.0
-        ],
-        [
-          8.5,
-          0.55
-        ],
-        [
-          9.0,
-          0.35
-        ],
-        [
-          9.5,
-          0.1
-        ],
-        [
-          10.0,
-          0.1
-        ],
-        [
-          10.5,
-          0.1
-        ],
-        [
-          11.0,
-          0.1
-        ],
-        [
-          11.5,
-          0.55
-        ],
-        [
-          12.0,
-          1.0
-        ],
-        [
-          12.5,
-          1.0
-        ],
-        [
-          13.0,
-          1.0
-        ],
-        [
-          13.5,
-          1.0
-        ],
-        [
-          14.0,
+          4.5,
           1.0
         ]
       ],
@@ -911,7 +388,7 @@
     },
     {
       "id": "exhale_after",
-      "order": 11,
+      "order": 10,
       "name": "exhale_after",
       "description": "Is the user exhaling away from the inhaler? (Consider the user exhaling if lips are tighter than in the previous frames.)",
       "time": [],
@@ -920,59 +397,7 @@
       ],
       "confidenceScore": [
         [
-          7.5,
-          0.7
-        ],
-        [
-          8.0,
-          1.0
-        ],
-        [
-          8.5,
-          0.55
-        ],
-        [
-          9.0,
-          0.39999999999999997
-        ],
-        [
-          9.5,
-          0.1
-        ],
-        [
-          10.0,
-          0.1
-        ],
-        [
-          10.5,
-          0.1
-        ],
-        [
-          11.0,
-          0.1
-        ],
-        [
-          11.5,
-          0.55
-        ],
-        [
-          12.0,
-          1.0
-        ],
-        [
-          12.5,
-          1.0
-        ],
-        [
-          13.0,
-          1.0
-        ],
-        [
-          13.5,
-          1.0
-        ],
-        [
-          14.0,
+          4.5,
           1.0
         ]
       ],
@@ -980,22 +405,22 @@
     }
   ],
   "summary": {
-    "totalSteps": 11,
-    "passedSteps": 8,
-    "failedSteps": 3,
-    "score": 72.72727272727273
+    "totalSteps": 10,
+    "passedSteps": 5,
+    "failedSteps": 5,
+    "score": 50.0
   },
   "modelInfo": {
     "models": [
       "gpt-4.1",
       "gpt-4.1"
     ],
-    "analysisTime": 14.63
+    "analysisTime": 5.07
   },
   "errors": [],
-  "finalSummary": "* 숨 참기: 약물을 흡입한 후 숨을 잠시 참지 않았습니다.\n* 입에서 흡입기 제거: 흡입 후 흡입기를 입에서 바로 제거하지 않았습니다.\n* 흡입기에서 멀리 숨 내쉬기: 흡입 후 흡입기에서 멀리 떨어져 숨을 내쉬지 않았습니다.\n\n수행되지 않은 윗 단계에 대해 추가 연습이 필요합니다.",
+  "finalSummary": "* 흡입기에서 멀리 숨 내쉬기: 흡입기 사용 전, 입을 오므려 흡입기에서 멀리 숨을 내쉬는 동작이 제대로 수행되지 않았습니다.\n* 숨 참기: 약물을 흡입한 후 숨을 잠시 참지 않았습니다.\n* 마우스피스에 입 대기: 흡입기 마우스피스에 입술을 단단히 밀착시키지 않았습니다.\n* 흡입기로 깊게 흡입하기: 흡입기를 입에 문 상태에서 깊게 흡입하는 동작이 제대로 이루어지지 않았습니다.\n* 입에서 흡입기 제거: 흡입 후 흡입기를 입에서 바로 제거하지 않았습니다.\n\n수행되지 않은 윗 단계에 대해 추가 연습이 필요합니다.",
   "individualHtmlPaths": [
-    "/workspaces/AI_inhaler/app_SMI_type1/visualization_gpt-4.1_0_d42b40ad-4b35-4efa-9661-51ec303c7f8f_1227_0214.html",
-    "/workspaces/AI_inhaler/app_SMI_type1/visualization_gpt-4.1_1_d42b40ad-4b35-4efa-9661-51ec303c7f8f_1227_0214.html"
+    "/workspaces/AI_inhaler/app_pMDI_type2/visualization_gpt-4.1_1_ebb1fad8-4a41-4dec-a37c-54dfe7babfd8_1227_1329.html",
+    "/workspaces/AI_inhaler/app_pMDI_type2/visualization_gpt-4.1_0_ebb1fad8-4a41-4dec-a37c-54dfe7babfd8_1227_1329.html"
   ]
 }

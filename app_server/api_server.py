@@ -208,6 +208,31 @@ def convert_backend_report_to_frontend(report: Dict[str, Any], final_state: Dict
 
 
 # ============================================
+# 동기 분석 실행 래퍼 함수
+# ============================================
+def _run_analysis_sync(device_type: str, video_path: str, llm_models: List[str], save_individual_report: bool):
+    """
+    동기 분석 실행 래퍼 함수
+    run_in_executor에서 사용하기 위해 변수를 명시적으로 전달
+    
+    Args:
+        device_type: 디바이스 타입
+        video_path: 비디오 파일 경로
+        llm_models: LLM 모델 리스트
+        save_individual_report: 개별 리포트 저장 여부
+        
+    Returns:
+        분석 결과
+    """
+    return app_main.run_device_analysis(
+        device_type=device_type,
+        video_path=video_path,
+        llm_models=llm_models,
+        save_individual_report=save_individual_report
+    )
+
+
+# ============================================
 # 비동기 분석 실행 함수
 # ============================================
 async def run_analysis_async(
@@ -224,18 +249,18 @@ async def run_analysis_async(
         # 상태 업데이트: processing
         analysis_storage[analysis_id]["status"] = "processing"
         analysis_storage[analysis_id]["current_stage"] = "분석 초기화 중..."
-        analysis_storage[analysis_id]["logs"].append(f"[{datetime.now().strftime('%H:%M:%S')}] 분석 시작")
+        analysis_storage[analysis_id]["logs"].append(f"[{datetime.now().strftime('%H:%M:%S')}] 분석 시작 (device_type: {device_type})")
         
         # 동기 함수를 비동기로 실행 (별도 스레드에서)
+        # 래퍼 함수를 사용하여 변수를 명시적으로 전달 (클로저 문제 방지)
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             None,
-            lambda: app_main.run_device_analysis(
-                device_type=device_type,
-                video_path=video_path,
-                llm_models=llm_models,
-                save_individual_report=save_individual_report
-            )
+            _run_analysis_sync,
+            device_type,
+            video_path,
+            llm_models,
+            save_individual_report
         )
         
         if result and result.get("status") == "completed":

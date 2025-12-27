@@ -14,8 +14,8 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 TEST_CONFIG = {
-    "video_path": "/workspaces/AI_inhaler/app_SMI_type1/video_source/SMI-6 Respimat.MOV",
-    "device_type": "SMI_type1",
+    "video_path": "/workspaces/AI_inhaler/app_server/test_clip.mp4",
+    "device_type": "pMDI_type2",
     "save_individual_report": True
 }
 

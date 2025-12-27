@@ -120,7 +120,24 @@ class ReporterAgent:
                     if visualization_fig:
                         # HTML 파일로 저장
                         html_filename = f"visualization_{model_id}_{video_info['video_name']}_{timestamp_suffix}.html"
-                        html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), html_filename)
+                        # __file__ 대신 sys.path의 첫 번째 app_* 경로 사용 (모듈 로드 문제 방지)
+                        # 또는 state에서 app_dir을 가져오기 (가능한 경우)
+                        app_dir = None
+                        if hasattr(state, 'get') and state.get('app_dir'):
+                            app_dir = state.get('app_dir')
+                        else:
+                            # sys.path에서 첫 번째 app_* 경로 찾기
+                            import sys
+                            for path in sys.path:
+                                if os.path.basename(path).startswith('app_'):
+                                    app_dir = path
+                                    break
+                        
+                        # app_dir을 찾지 못한 경우에만 __file__ 사용 (fallback)
+                        if app_dir and os.path.exists(app_dir):
+                            html_path = os.path.join(app_dir, html_filename)
+                        else:
+                            html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), html_filename)
                         visualization_fig.write_html(html_path)
                         
                         # HTML 경로 수집
