@@ -94,6 +94,7 @@ class ReporterAgent:
             
             # 1. 각 agent에 대해 개별 판정 규칙 적용
             individual_agent_decisions = {}
+            individual_html_paths = []  # 개별 HTML 파일 경로 수집
             for model_id, result in model_results.items():
                 reference_times = result.get("reference_times", {})
                 promptbank_data = result.get("promptbank_data", {})
@@ -121,6 +122,9 @@ class ReporterAgent:
                         html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), html_filename)
                         visualization_fig.write_html(html_path)
                         
+                        # HTML 경로 수집
+                        individual_html_paths.append(html_path)
+                        
                         print(f"[{self.name}] {model_id} 시각화 HTML 파일 저장됨:")
                         print(f"  파일 경로: {html_path}")
             
@@ -130,7 +134,7 @@ class ReporterAgent:
             
             # 4. 최종 리포트 생성
             final_report = self._create_final_report(
-                state, individual_agent_decisions, final_decisions
+                state, individual_agent_decisions, final_decisions, individual_html_paths
             )
             state["final_report"] = final_report
             
@@ -463,7 +467,8 @@ class ReporterAgent:
     
     def _create_final_report(self, state: VideoAnalysisState, 
                             individual_agent_decisions: dict, 
-                            final_decisions: dict) -> dict:
+                            final_decisions: dict,
+                            individual_html_paths: list = None) -> dict:
         """
         최종 리포트 생성
         
@@ -471,6 +476,7 @@ class ReporterAgent:
             state: 현재 상태
             individual_agent_decisions: {model_id: {action_key: 0 or 1}}
             final_decisions: {action_key: 0 or 1} - 최종 판정 결과
+            individual_html_paths: 개별 Agent 시각화 HTML 파일 경로 리스트
         """
         video_info = state["video_info"]
         model_results = state.get("model_results", {})
@@ -542,6 +548,7 @@ class ReporterAgent:
             "individual_agent_decisions": individual_agent_decisions,
             "final_summary": final_summary,
             "action_order": self.ACTION_ORDER,
+            "individual_html_paths": individual_html_paths or [],
             "summary": {
                 "total_actions_detected": sum(
                     1 for action in action_analysis.values() 

@@ -26,7 +26,15 @@ cleanup_existing() {
     pkill -f "uvicorn.*api_server" 2>/dev/null || true
     
     # 기존 HTTP 서버 프로세스 종료 (포트 8080)
-    lsof -ti:8080 | xargs kill -9 2>/dev/null || true
+    # ss 또는 fuser를 사용하여 포트 8080을 사용하는 프로세스 찾기
+    if command -v ss >/dev/null 2>&1; then
+        ss -tlnp 2>/dev/null | grep :8080 | grep -oP 'pid=\K[0-9]+' | xargs kill -9 2>/dev/null || true
+    elif command -v fuser >/dev/null 2>&1; then
+        fuser -k 8080/tcp 2>/dev/null || true
+    else
+        # 대체 방법: python http.server 프로세스 종료
+        pkill -f "python.*http.server.*8080" 2>/dev/null || true
+    fi
     
     sleep 2
 }

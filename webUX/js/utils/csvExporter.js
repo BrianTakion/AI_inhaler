@@ -61,6 +61,17 @@ class CSVExporter {
         }
         rows.push([]);
         
+        // 개별 Agent 시각화 HTML 파일 경로
+        rows.push(['개별 Agent 시각화 HTML 파일']);
+        if (result.individualHtmlPaths && result.individualHtmlPaths.length > 0) {
+            result.individualHtmlPaths.forEach((htmlPath, index) => {
+                rows.push([`${index + 1}.`, htmlPath]);
+            });
+        } else {
+            rows.push(['HTML 파일 경로가 없습니다.']);
+        }
+        rows.push([]);
+        
         // 행동 단계 상세
         rows.push(['행동 단계 상세']);
         rows.push(['순서', 'ID', '이름', '설명', '시간', '점수', '결과', '신뢰도']);

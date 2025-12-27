@@ -411,6 +411,9 @@ class InhalerAnalysisApp {
             finalSummaryContent.textContent = '종합 기술 정보가 없습니다.';
         }
         
+        // 개별 Agent 시각화 HTML 파일 경로
+        this.displayIndividualHtmlPaths(result.individualHtmlPaths || []);
+        
         // 행동 단계
         this.displayActionSteps(result.actionSteps || []);
     }
@@ -439,6 +442,42 @@ class InhalerAnalysisApp {
             `;
             
             container.appendChild(stepItem);
+        });
+    }
+    
+    /**
+     * 개별 Agent 시각화 HTML 파일 경로 표시
+     * @param {Array} htmlPaths - HTML 파일 경로 배열
+     */
+    displayIndividualHtmlPaths(htmlPaths) {
+        const container = document.getElementById('individualHtmlPathsList');
+        const section = document.getElementById('resultIndividualHtmlPaths');
+        
+        if (!htmlPaths || htmlPaths.length === 0) {
+            // HTML 경로가 없으면 섹션 숨기기
+            if (section) {
+                section.classList.add('hidden');
+            }
+            return;
+        }
+        
+        // HTML 경로가 있으면 섹션 표시
+        if (section) {
+            section.classList.remove('hidden');
+        }
+        
+        container.innerHTML = '';
+        
+        htmlPaths.forEach((htmlPath, index) => {
+            const pathItem = document.createElement('div');
+            pathItem.className = 'py-2 border-b border-gray-200 last:border-b-0';
+            
+            pathItem.innerHTML = `
+                <span class="font-semibold text-gray-700">${index + 1}.</span>
+                <span class="text-gray-900 ml-2 font-mono text-xs break-all">${this.escapeHtml(htmlPath)}</span>
+            `;
+            
+            container.appendChild(pathItem);
         });
     }
     

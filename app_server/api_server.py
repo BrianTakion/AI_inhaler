@@ -30,7 +30,8 @@ from app_server import app_main
 # 고정된 LLM 모델 설정
 # "gpt-4.1", "gpt-5-nano", "gpt-5.1", "gpt-5.2"
 # "gemini-2.5-pro", "gemini-3-flash-preview", "gemini-3-pro-preview"    
-FIXED_LLM_MODELS = ["gpt-4.1", "gpt-5.1", "gemini-2.5-pro", "gemini-3-flash-preview"]
+#FIXED_LLM_MODELS = ["gpt-4.1", "gpt-5.1", "gemini-2.5-pro", "gemini-3-flash-preview"]
+FIXED_LLM_MODELS = ["gpt-4.1", "gpt-4.1"]
 
 # ============================================
 # FastAPI 앱 초기화
@@ -189,6 +190,9 @@ def convert_backend_report_to_frontend(report: Dict[str, Any], final_state: Dict
     # Reference Times (백엔드에서 제공하지 않으면 None)
     reference_times = None
     
+    # Individual HTML paths (개별 Agent 시각화 HTML 파일 경로)
+    individual_html_paths = report.get("individual_html_paths", [])
+    
     return {
         "status": "completed",
         "deviceType": None,  # 요청에서 가져와야 함
@@ -198,7 +202,8 @@ def convert_backend_report_to_frontend(report: Dict[str, Any], final_state: Dict
         "summary": summary,
         "modelInfo": model_info,
         "errors": final_state.get("errors", []),
-        "finalSummary": final_summary  # 최종 종합 기술 추가
+        "finalSummary": final_summary,  # 최종 종합 기술 추가
+        "individualHtmlPaths": individual_html_paths  # 개별 Agent 시각화 HTML 파일 경로 추가
     }
 
 

@@ -72,6 +72,12 @@ def print_analysis_summary(report: dict):
         else:
             print("  종합 기술 정보가 없습니다.")
     
+    # 개별 Agent 시각화 HTML 파일 경로 출력
+    if "individual_html_paths" in report and report["individual_html_paths"]:
+        print(f"\n[개별 Agent 시각화 HTML 파일]")
+        for idx, html_path in enumerate(report["individual_html_paths"], 1):
+            print(f"  {idx}. {html_path}")
+    
     print("\n" + "="*50)
 
 
@@ -194,7 +200,7 @@ def main():
     # "gpt-4.1", "gpt-5-nano", "gpt-5.1", "gpt-5.2"
     # "gemini-2.5-pro", "gemini-3-flash-preview", "gemini-3-pro-preview"
     #set_llm_models = ['gpt-4.1', 'gpt-5.1', 'gemini-2.5-pro', 'gemini-3-flash-preview']
-    set_llm_models = ['gpt-4.1', 'gemini-2.5-pro']
+    set_llm_models = ['gpt-5-nano', 'gpt-5-nano']
     save_individual_report = True  # 개별 리포트 저장 여부 (True: 저장, False: 저장하지 않기)
     
     result = run_device_analysis(

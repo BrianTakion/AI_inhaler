@@ -156,7 +156,6 @@ class APIAnalysisTester:
         print(f"요청 파라미터:")
         print(f"  - Video ID: {self.video_id}")
         print(f"  - Device Type: {device_type}")
-        print(f"  - LLM Models: (서버에서 고정값 사용: ['gpt-4.1', 'gemini-2.5-pro'])")
         print(f"  - Save Individual Report: {save_individual_report}")
         
         try:
@@ -412,6 +411,14 @@ class APIAnalysisTester:
         else:
             print("  종합 기술 정보가 없습니다.")
         print()
+        
+        # 4. 개별 Agent 시각화 HTML 파일 경로
+        individual_html_paths = self.final_result.get('individualHtmlPaths', [])
+        if individual_html_paths:
+            print("[개별 Agent 시각화 HTML 파일]")
+            for idx, html_path in enumerate(individual_html_paths, 1):
+                print(f"  {idx}. {html_path}")
+            print()
         
         return True
     
