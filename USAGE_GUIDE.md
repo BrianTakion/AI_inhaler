@@ -1,32 +1,101 @@
 # AI 흡입기 분석 시스템 사용 가이드
 
-이 문서는 AI 흡입기 분석 시스템의 주요 구성 요소들의 사용법을 설명합니다.
+이 문서는 AI 흡입기 분석 시스템의 설치, 설정, 실행 방법을 체계적으로 설명합니다.
 
 ## 목차
 
-1. [초기 설정](#초기-설정)
-2. [macOS 서버 설정](#macos-서버-설정)
-3. [서버 실행 스크립트](#서버-실행-스크립트)
-   - [start_AI_inhaler.sh - 호스트에서 실행 (통합 스크립트)](#start_ai_inhalersh---호스트에서-실행-통합-스크립트)
-   - [start_inside_container.sh - 컨테이너 내부에서 직접 실행](#start_inside_containersh---컨테이너-내부에서-직접-실행)
-4. [전체 워크플로우](#전체-워크플로우)
-5. [app_main.py - 통합 분석 애플리케이션](#app_mainpy---통합-분석-애플리케이션)
-6. [api_server.py - FastAPI 백엔드 서버](#api_serverpy---fastapi-백엔드-서버)
-7. [test_api_server.py - API 서버 테스트](#test_api_serverpy---api-서버-테스트)
+1. [빠른 시작](#빠른-시작)
+2. [시스템 요구사항](#시스템-요구사항)
+3. [초기 설정](#초기-설정)
+4. [서버 실행 방법](#서버-실행-방법)
+5. [플랫폼별 설정](#플랫폼별-설정)
+6. [전체 워크플로우](#전체-워크플로우)
+7. [주요 컴포넌트](#주요-컴포넌트)
 8. [문제 해결](#문제-해결)
-9. [추가 정보](#추가-정보)
+9. [참고 정보](#참고-정보)
+
+---
+
+## 빠른 시작
+
+시스템을 빠르게 시작하려면 다음 3단계를 따르세요:
+
+### 1단계: API 키 설정
+
+```bash
+# app_server 디렉토리로 이동
+cd /workspaces/AI_inhaler/app_server
+
+# .env 파일 생성 및 편집
+cat > .env << EOF
+OPENAI_API_KEY=your-openai-api-key-here
+GOOGLE_API_KEY=your-google-api-key-here
+EOF
+```
+
+**필수 사항:**
+
+- `OPENAI_API_KEY`: OpenAI 모델 사용 시 필수
+- `GOOGLE_API_KEY`: Google Gemini 모델 사용 시 필수
+- API 키 발급: [OpenAI](https://platform.openai.com/api-keys) | [Google Gemini](https://makersuite.google.com/app/apikey)
+
+### 2단계: 의존성 패키지 설치
+
+```bash
+# 프로젝트 루트에서
+cd /workspaces/AI_inhaler
+pip install -r requirements.txt
+```
+
+### 3단계: 서버 시작
+
+**호스트에서 실행 (권장):**
+
+```bash
+./start_AI_inhaler.sh
+```
+
+**컨테이너 내부에서 직접 실행:**
+
+```bash
+./start_inside_container.sh
+```
+
+### 접속
+
+서버 시작 후 다음 주소로 접속:
+
+- **프론트엔드**: `http://localhost:8080`
+- **백엔드 API**: `http://localhost:8000`
+
+---
+
+## 시스템 요구사항
+
+### 필수 소프트웨어
+
+- **Docker**: Docker Desktop (macOS) 또는 Docker Engine (Linux/WSL)
+- **Python**: Python 3.8 이상
+- **패키지**: `requirements.txt`에 명시된 모든 패키지
+
+### 지원 플랫폼
+
+- **macOS**: Intel 및 Apple Silicon 모두 지원
+- **Linux**: Ubuntu 20.04 이상 권장
+- **WSL**: Windows Subsystem for Linux 2 (WSL2)
+
+### 네트워크
+
+- **포트 8000**: 백엔드 API 서버
+- **포트 8080**: 프론트엔드 웹 서버
 
 ---
 
 ## 초기 설정
 
-시스템을 사용하기 전에 다음 설정을 완료해야 합니다.
-
 ### 1. API 키 설정 (필수)
 
-**중요**: `/workspaces/AI_inhaler/app_server/.env` 파일에 API 키를 설정해야 합니다.
-
-#### .env 파일 생성 및 설정
+#### 1.1 .env 파일 생성
 
 ```bash
 # app_server 디렉토리로 이동
@@ -41,32 +110,34 @@ nano .env
 vim .env
 ```
 
-#### API 키 기록
+#### 1.2 API 키 기록
 
 `.env` 파일에 다음과 같이 API 키를 기록합니다:
 
 ```bash
-OPENAI_API_KEY=your-openai-api-key-here
-GOOGLE_API_KEY=your-google-api-key-here
+OPENAI_API_KEY=sk-...
+GOOGLE_API_KEY=...
 ```
 
 **설명:**
 
-- `OPENAI_API_KEY`: OpenAI 모델(`gpt-4.1`, `gpt-5-nano` 등)을 사용하는 경우 필수
-- `GOOGLE_API_KEY`: Google Gemini 모델(`gemini-2.5-pro` 등)을 사용하는 경우 필수
-- 실제 API 키 값으로 `your-openai-api-key-here`와 `your-google-api-key-here`를 교체해야 합니다
-- 사용하지 않는 API는 해당 줄을 비워두거나 주석 처리할 수 있습니다
+- `OPENAI_API_KEY`: OpenAI 모델(`gpt-4.1`, `gpt-5-nano`, `gpt-5.1` 등) 사용 시 필수
+- `GOOGLE_API_KEY`: Google Gemini 모델(`gemini-2.5-pro`, `gemini-3-flash-preview` 등) 사용 시 필수
+- 사용하지 않는 API는 해당 줄을 비워두거나 주석 처리 가능
 
 **API 키 발급:**
 
 - OpenAI: https://platform.openai.com/api-keys
 - Google Gemini: https://makersuite.google.com/app/apikey
 
-**확인:**
+#### 1.3 설정 확인
 
 ```bash
-# 설정 확인 (키 값은 마스킹하여 출력)
-cat app_server/.env | grep -E "OPENAI_API_KEY|GOOGLE_API_KEY"
+# 파일 존재 확인
+ls -la /workspaces/AI_inhaler/app_server/.env
+
+# 설정 확인 (키 값은 마스킹되어 출력)
+grep -E "OPENAI_API_KEY|GOOGLE_API_KEY" /workspaces/AI_inhaler/app_server/.env
 ```
 
 ### 2. 의존성 패키지 설치
@@ -81,185 +152,28 @@ pip install -r requirements.txt
 
 **주요 패키지:**
 
-- `opencv-python-headless`: 비디오/이미지 처리 (WSL/Linux/macOS 호환)
+- `opencv-python-headless`: 비디오/이미지 처리 (GUI 의존성 없음, 모든 플랫폼 호환)
 - `fastapi`, `uvicorn`: 웹 서버
 - `langchain`, `langgraph`: 멀티 에이전트 시스템
-- 기타 의존성은 `requirements.txt` 참조
+- `openai`: OpenAI API 클라이언트
+- `google-genai`: Google Gemini API 클라이언트
 
-### 3. 서버 시작
-
-초기 설정이 완료되면 서버를 시작할 수 있습니다:
-
-**호스트에서 실행 (권장):**
-
-```bash
-./start_AI_inhaler.sh
-```
-
-**컨테이너 내부에서 직접 실행:**
-
-```bash
-# 컨테이너 내부 터미널에서
-./start_inside_container.sh
-```
-
-자세한 내용은 [서버 실행 스크립트](#서버-실행-스크립트) 섹션을 참조하세요.
+**전체 패키지 목록은 `requirements.txt` 참조**
 
 ---
 
-## macOS 서버 설정
+## 서버 실행 방법
 
-macOS 서버 환경에서 추가로 확인할 사항:
+시스템을 실행하는 방법은 두 가지가 있습니다:
 
-### 1. Macmini 서버 접속 설정
-
-원격 Macmini 서버에 접속하여 작업하는 방법:
-
-#### 1.1 Macmini 서버 IP 주소 확인
-
-Macmini 서버에서 IP 주소를 확인하려면:
-
-```bash
-# Macmini 서버 터미널에서 실행
-# 이더넷 연결인 경우
-ifconfig en0 | grep "inet "
-
-# Wi-Fi 연결인 경우
-ifconfig en1 | grep "inet "
-
-# 또는 모든 인터페이스 확인
-ifconfig | grep "inet " | grep -v 127.0.0.1
-```
-
-#### 1.2 Cursor에 SSH Config 설정
-
-Cursor에서 Macmini 서버에 SSH로 접속하기 위한 설정:
-
-1. **SSH Config 파일 편집:**
-
-   - Windows: `C:\Users\<사용자명>\.ssh\config`
-   - macOS/Linux: `~/.ssh/config`
-
-2. **다음 내용 추가:**
-
-   ```
-   Host jnu-MacMini-1234
-       HostName 172.30.1.7
-       User jnu
-       Port 22
-   ```
-
-   **설명:**
-
-   - `Host`: 연결에 사용할 별칭 (원하는 이름으로 변경 가능)
-   - `HostName`: Macmini 서버의 IP 주소
-   - `User`: SSH 접속할 사용자명
-   - `Port`: SSH 포트 (기본값: 22)
-
-3. **접속 테스트:**
-
-   ```bash
-   # Cursor 터미널에서
-   ssh jnu-MacMini-1234
-   ```
-
-4. **Cursor에서 원격 연결:**
-   - Command Palette (Ctrl+Shift+P / Cmd+Shift+P)
-   - "Remote-SSH: Connect to Host"
-   - `jnu-MacMini-1234` 선택
-
-#### 1.3 Docker 데몬 실행 확인
-
-Macmini 서버에서 Docker Desktop이 실행 중인지 확인:
-
-```bash
-# Docker Desktop 실행
-open -a Docker
-
-# Docker 데몬 상태 확인
-docker ps
-```
-
-**주의사항:**
-
-- Docker Desktop이 실행되어야 `start_AI_inhaler.sh` 스크립트가 정상 작동합니다
-- 로그인 시 자동 실행하려면 Docker Desktop 설정에서 "Start Docker Desktop when you log in" 옵션 활성화
-
-#### 1.4 OpenGL 설치 (필요시)
-
-일부 환경에서 OpenGL 관련 라이브러리가 필요할 수 있습니다:
-
-```bash
-# Homebrew로 Mesa 설치
-brew install mesa
-```
-
-**참고:**
-
-- 이 프로젝트는 `opencv-python-headless`를 사용하므로 일반적으로 OpenGL 설치가 필요하지 않습니다
-- 다른 의존성 문제가 있는 경우에만 설치하세요
-
-### 2. 방화벽 설정
-
-macOS 시스템 설정에서 포트를 허용해야 할 수 있습니다:
-
-1. **시스템 설정** → **네트워크** → **방화벽**
-2. 방화벽이 활성화되어 있는 경우, 포트 8000과 8080 허용 필요
-3. 또는 터미널에서 Python 허용:
-   ```bash
-   sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/bin/python3
-   ```
-
-### 3. VS Code Dev Container 환경에서의 접속
-
-VS Code Dev Container 환경을 사용하는 경우:
-
-**중요**: `172.17.0.2`는 Docker 컨테이너 내부 IP 주소입니다. Windows 브라우저에서 이 IP로 직접 접근할 수 없습니다.
-
-**올바른 접속 방법:**
-
-1. **VS Code 포트 포워딩 사용 (권장)**:
-
-   - Dev Container는 자동으로 포트를 포워딩합니다 (`.devcontainer/devcontainer.json`의 `forwardPorts: [8080, 8000]`)
-   - Windows 브라우저에서 **`http://localhost:8080`** 으로 접속
-   - 이 방법이 가장 간단하고 안정적입니다
-
-2. **macOS 호스트 IP 사용** (포트 포워딩이 작동하지 않는 경우):
-   - macOS 호스트의 실제 IP 주소를 확인:
-     ```bash
-     # macOS 터미널에서 실행
-     ifconfig | grep "inet " | grep -v 127.0.0.1
-     ```
-   - 예: `192.168.1.100`인 경우 → `http://192.168.1.100:8080`
-
-**포트 포워딩 확인:**
-
-- VS Code 하단 상태 표시줄에서 "Ports" 탭 확인
-- 8080, 8000 포트가 "Forwarded" 상태인지 확인
-
-### 4. Python 인터프리터
-
-macOS에서는 기본적으로 `python3`가 설치되어 있습니다:
-
-- `python3` 명령어 사용 (스크립트에서 자동 선택됨)
-- Homebrew를 통해 설치된 Python 사용 가능
-
----
-
-## 서버 실행 스크립트
-
-서버를 실행하는 방법은 두 가지가 있습니다:
-
-1. **호스트에서 실행 (권장)**: `start_AI_inhaler.sh` - 컨테이너 자동 관리 포함
-2. **컨테이너 내부에서 직접 실행**: `start_inside_container.sh`
-
----
+1. **호스트에서 실행 (권장)**: `start_AI_inhaler.sh` - Docker 컨테이너 자동 관리
+2. **컨테이너 내부에서 직접 실행**: `start_inside_container.sh` - 컨테이너 내부 터미널에서 실행
 
 ### start_AI_inhaler.sh - 호스트에서 실행 (통합 스크립트)
 
 #### 개요
 
-**호스트(macOS/Linux/WSL)**에서 실행하는 통합 시작 스크립트입니다. 컨테이너가 없으면 자동으로 생성하고, 있으면 포트 매핑을 확인한 후 서버를 시작합니다.
+**호스트(macOS/Linux/WSL)**에서 실행하는 통합 시작 스크립트입니다. Docker 컨테이너를 자동으로 찾거나 생성하고, 포트 매핑을 설정한 후 서버를 시작합니다.
 
 #### 주요 기능
 
@@ -270,11 +184,6 @@ macOS에서는 기본적으로 `python3`가 설치되어 있습니다:
 - **호스트 IP 주소 표시**: 원격 접속을 위한 호스트 IP 주소 안내
 - **크로스 플랫폼 지원**: macOS, Linux, WSL 모두 지원
 
-#### 사용 환경
-
-- 호스트 터미널에서 실행 (컨테이너 내부 접속 불필요)
-- macOS, Linux, WSL 모두 지원
-
 #### 사전 요구사항
 
 1. **Docker 설치 및 실행**
@@ -282,6 +191,7 @@ macOS에서는 기본적으로 `python3`가 설치되어 있습니다:
    - Docker Desktop (macOS) 또는 Docker Engine (Linux/WSL)
    - Docker 데몬이 실행 중이어야 함
    - macOS: `open -a Docker`로 Docker Desktop 시작
+   - Linux/WSL: `sudo systemctl start docker` 또는 `sudo service docker start`
 
 2. **devcontainer.json 파일**
    - 프로젝트 루트의 `.devcontainer/devcontainer.json` 파일 필요
@@ -303,7 +213,10 @@ macOS에서는 기본적으로 `python3`가 설치되어 있습니다:
 또는 컨테이너 내부에서 직접 종료:
 
 ```bash
-# 컨테이너 내부 터미널에서
+# 컨테이너 이름 확인
+docker ps
+
+# 컨테이너 내부에서 프로세스 종료
 docker exec -it <container-name> bash -c "cd /workspaces/AI_inhaler && pkill -f api_server.py && pkill -f 'python.*http.server.*8080'"
 ```
 
@@ -370,13 +283,6 @@ AI Inhaler 통합 시작 스크립트
 ==========================================
 
 서버를 종료하려면 Ctrl+C를 누르세요.
-
-start_inside_container.sh 파일 확인 중...
-✓ start_inside_container.sh 파일 확인됨
-
-==========================================
-AI 흡입기 분석 시스템 시작
-==========================================
 ...
 ```
 
@@ -391,49 +297,26 @@ AI 흡입기 분석 시스템 시작
 
 #### 문제 해결
 
-##### Docker 데몬이 실행되지 않는 경우
+**Docker 데몬이 실행되지 않는 경우:**
 
-**macOS:**
+- **macOS**: `open -a Docker`
+- **WSL**: `sudo service docker start`
+- **Linux**: `sudo systemctl start docker`
 
-```bash
-open -a Docker
-```
-
-**Linux/WSL:**
-
-```bash
-# WSL
-sudo service docker start
-
-# Linux
-sudo systemctl start docker
-```
-
-##### 컨테이너를 찾을 수 없는 경우
+**컨테이너를 찾을 수 없는 경우:**
 
 스크립트가 자동으로 새 컨테이너를 생성합니다. `devcontainer.json` 파일이 올바른지 확인하세요.
 
-##### 포트 매핑이 설정되지 않은 경우
+**포트 매핑이 설정되지 않은 경우:**
 
 스크립트가 자동으로 컨테이너를 재시작하여 포트 매핑을 설정합니다. 기존 컨테이너가 재시작될 수 있으니 주의하세요.
 
-##### 호스트 IP 주소를 찾을 수 없는 경우
+**호스트 IP 주소를 찾을 수 없는 경우:**
 
 스크립트는 `localhost`로 접속하는 방법을 안내합니다. 수동으로 IP를 확인하려면:
 
-**macOS:**
-
-```bash
-ifconfig | grep "inet " | grep -v 127.0.0.1
-```
-
-**Linux/WSL:**
-
-```bash
-hostname -I
-# 또는
-ip addr show | grep "inet "
-```
+- **macOS**: `ifconfig | grep "inet " | grep -v 127.0.0.1`
+- **Linux/WSL**: `hostname -I` 또는 `ip addr show | grep "inet "`
 
 #### 주의사항
 
@@ -467,12 +350,13 @@ ip addr show | grep "inet "
 
 ##### 서버 종료
 
+**서버가 실행 중인 터미널에서:**
+
 ```bash
-# 서버가 실행 중인 터미널에서
 Ctrl+C
 ```
 
-또는 프로세스 직접 종료:
+**또는 프로세스 직접 종료:**
 
 ```bash
 # 백엔드 종료
@@ -490,7 +374,7 @@ ss -tlnp | grep :8080 | sed -n 's/.*pid=\([0-9]*\).*/\1/p' | xargs kill -9
 
 1. **기존 프로세스 정리** - 실행 중인 서버 프로세스 자동 종료
 2. **백엔드 서버 시작** - `api_server.py` 실행 (포트 8000)
-3. **백엔드 상태 확인** - 서버가 정상적으로 시작되었는지 확인
+3. **백엔드 상태 확인** - 서버가 정상적으로 시작되었는지 확인 (curl 사용)
 4. **프론트엔드 서버 시작** - Python HTTP 서버 실행 (포트 8080, 0.0.0.0에 바인딩)
 5. **프론트엔드 상태 확인** - 서버가 정상적으로 시작되었는지 확인
 
@@ -535,7 +419,6 @@ AI 흡입기 분석 시스템 시작
   - 프론트엔드: tail -f /workspaces/AI_inhaler/logs/frontend.log
 
 서버를 종료하려면 Ctrl+C를 누르세요.
-
 ==========================================
 ```
 
@@ -566,7 +449,7 @@ tail -f logs/*.log
 
 #### 문제 해결
 
-##### 서버가 시작되지 않는 경우
+**서버가 시작되지 않는 경우:**
 
 1. **포트 사용 확인:**
 
@@ -591,7 +474,7 @@ tail -f logs/*.log
    python --version
    ```
 
-##### 프로세스가 정리되지 않는 경우
+**프로세스가 정리되지 않는 경우:**
 
 ```bash
 # 모든 서버 프로세스 강제 종료
@@ -600,6 +483,164 @@ pkill -9 -f "python.*http.server.*8080"
 
 # PID 파일 삭제
 rm -f .server_pids
+```
+
+---
+
+## 플랫폼별 설정
+
+### macOS 서버 설정
+
+#### 1. Macmini 서버 접속 설정
+
+**1.1 Macmini 서버 IP 주소 확인**
+
+```bash
+# Macmini 서버 터미널에서 실행
+# 이더넷 연결인 경우
+ifconfig en0 | grep "inet "
+
+# Wi-Fi 연결인 경우
+ifconfig en1 | grep "inet "
+
+# 또는 모든 인터페이스 확인
+ifconfig | grep "inet " | grep -v 127.0.0.1
+```
+
+**1.2 Cursor에 SSH Config 설정**
+
+Cursor에서 Macmini 서버에 SSH로 접속하기 위한 설정:
+
+1. **SSH Config 파일 편집:**
+
+   - Windows: `C:\Users\<사용자명>\.ssh\config`
+   - macOS/Linux: `~/.ssh/config`
+
+2. **다음 내용 추가:**
+
+   ```
+   Host jnu-MacMini-1234
+       HostName 172.30.1.7
+       User jnu
+       Port 22
+   ```
+
+3. **접속 테스트:**
+
+   ```bash
+   ssh jnu-MacMini-1234
+   ```
+
+4. **Cursor에서 원격 연결:**
+   - Command Palette (Ctrl+Shift+P / Cmd+Shift+P)
+   - "Remote-SSH: Connect to Host"
+   - `jnu-MacMini-1234` 선택
+
+**1.3 Docker 데몬 실행 확인**
+
+```bash
+# Docker Desktop 실행
+open -a Docker
+
+# Docker 데몬 상태 확인
+docker ps
+```
+
+**주의사항:**
+
+- Docker Desktop이 실행되어야 `start_AI_inhaler.sh` 스크립트가 정상 작동합니다
+- 로그인 시 자동 실행하려면 Docker Desktop 설정에서 "Start Docker Desktop when you log in" 옵션 활성화
+
+**1.4 OpenGL 설치 (필요시)**
+
+일부 환경에서 OpenGL 관련 라이브러리가 필요할 수 있습니다:
+
+```bash
+# Homebrew로 Mesa 설치
+brew install mesa
+```
+
+**참고:**
+
+- 이 프로젝트는 `opencv-python-headless`를 사용하므로 일반적으로 OpenGL 설치가 필요하지 않습니다
+- 다른 의존성 문제가 있는 경우에만 설치하세요
+
+#### 2. 방화벽 설정
+
+macOS 시스템 설정에서 포트를 허용해야 할 수 있습니다:
+
+1. **시스템 설정** → **네트워크** → **방화벽**
+2. 방화벽이 활성화되어 있는 경우, 포트 8000과 8080 허용 필요
+3. 또는 터미널에서 Python 허용:
+   ```bash
+   sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/bin/python3
+   ```
+
+#### 3. VS Code Dev Container 환경에서의 접속
+
+VS Code Dev Container 환경을 사용하는 경우:
+
+**중요**: `172.17.0.2`는 Docker 컨테이너 내부 IP 주소입니다. Windows 브라우저에서 이 IP로 직접 접근할 수 없습니다.
+
+**올바른 접속 방법:**
+
+1. **VS Code 포트 포워딩 사용 (권장)**:
+
+   - Dev Container는 자동으로 포트를 포워딩합니다 (`.devcontainer/devcontainer.json`의 `forwardPorts: [8080, 8000]`)
+   - Windows 브라우저에서 **`http://localhost:8080`** 으로 접속
+   - 이 방법이 가장 간단하고 안정적입니다
+
+2. **macOS 호스트 IP 사용** (포트 포워딩이 작동하지 않는 경우):
+   - macOS 호스트의 실제 IP 주소를 확인:
+     ```bash
+     # macOS 터미널에서 실행
+     ifconfig | grep "inet " | grep -v 127.0.0.1
+     ```
+   - 예: `192.168.1.100`인 경우 → `http://192.168.1.100:8080`
+
+**포트 포워딩 확인:**
+
+- VS Code 하단 상태 표시줄에서 "Ports" 탭 확인
+- 8080, 8000 포트가 "Forwarded" 상태인지 확인
+
+#### 4. Python 인터프리터
+
+macOS에서는 기본적으로 `python3`가 설치되어 있습니다:
+
+- `python3` 명령어 사용 (스크립트에서 자동 선택됨)
+- Homebrew를 통해 설치된 Python 사용 가능
+
+### Linux/WSL 설정
+
+#### 1. IP 주소 확인
+
+Linux/WSL에서 IP 주소를 확인하는 방법:
+
+```bash
+# 간단한 방법
+hostname -I | awk '{print $1}'
+
+# 또는 상세 정보
+ip addr show | grep "inet " | grep -v 127.0.0.1
+
+# 기본 게이트웨이로 사용되는 IP
+ip route get 8.8.8.8 | awk '{print $7; exit}'
+```
+
+#### 2. Docker 실행
+
+**WSL:**
+
+```bash
+sudo service docker start
+```
+
+**Linux:**
+
+```bash
+sudo systemctl start docker
+# 또는
+sudo service docker start
 ```
 
 ---
@@ -650,10 +691,11 @@ rm -f .server_pids
 
 ### 3. 분석 수행
 
-1. 기기 선택
-2. 비디오 파일 업로드
-3. 분석 시작
-4. 결과 확인 및 저장
+1. **기기 선택** - 웹 UI에서 흡입기 타입 선택
+2. **비디오 파일 업로드** - 분석할 비디오 파일 업로드
+3. **분석 시작** - 분석 작업 시작
+4. **결과 확인** - 분석 진행 상황 모니터링
+5. **결과 저장** - 분석 결과 확인 및 저장
 
 ### 4. 시스템 종료
 
@@ -681,22 +723,24 @@ pkill -f "python.*http.server.*8080"
 
 ---
 
-## app_main.py - 통합 분석 애플리케이션
+## 주요 컴포넌트
 
-### 개요
+### app_main.py - 통합 분석 애플리케이션
+
+#### 개요
 
 `app_main.py`는 여러 디바이스 타입에 대해 통합적으로 흡입기 사용법 분석을 수행하는 메인 애플리케이션입니다.
 
-### 주요 기능
+#### 주요 기능
 
 - 다양한 디바이스 타입 지원 (pMDI_type1, pMDI_type2, DPI_type1, DPI_type2, DPI_type3, SMI_type1)
 - 멀티 LLM 모델 기반 분석
 - 개별 에이전트 리포트 생성 옵션
 - 분석 결과 요약 출력
 
-### 사용법
+#### 사용법
 
-#### 1. 직접 실행 (메인 함수 사용)
+**1. 직접 실행 (메인 함수 사용)**
 
 ```bash
 cd app_server
@@ -724,7 +768,7 @@ set_llm_models = ['gpt-4.1', 'gpt-4.1']
 save_individual_report = True
 ```
 
-#### 2. 모듈로 import하여 사용
+**2. 모듈로 import하여 사용**
 
 ```python
 from app_server import app_main
@@ -742,30 +786,25 @@ if result and result.get("status") == "completed":
     # 결과 처리...
 ```
 
-### 함수 설명
+#### 함수 설명
 
-#### `run_device_analysis(device_type, video_path, llm_models, save_individual_report)`
+**`run_device_analysis(device_type, video_path, llm_models, save_individual_report)`**
 
 특정 디바이스 타입에 대한 분석을 실행합니다.
 
 **매개변수:**
 
 - `device_type` (str): 디바이스 타입
-
   - `pMDI_type1`: Suspension pressurized metered-dose inhaler
   - `pMDI_type2`: Solution pressurized metered-dose inhaler
   - `DPI_type1`: Multi-dose cap-opening dry powder inhaler
   - `DPI_type2`: Multi-dose rotating/button-actuated dry powder inhaler
   - `DPI_type3`: Single-dose capsule-based dry powder inhaler
   - `SMI_type1`: Soft mist inhaler
-
 - `video_path` (str): 분석할 비디오 파일의 절대 경로
-
 - `llm_models` (list): 사용할 LLM 모델 리스트
-
   - OpenAI 모델: `"gpt-4.1"`, `"gpt-5-nano"`, `"gpt-5.1"`, `"gpt-5.2"`
   - Google 모델: `"gemini-2.5-pro"`, `"gemini-3-flash-preview"`, `"gemini-3-pro-preview"`
-
 - `save_individual_report` (bool): 개별 에이전트 결과물에 대한 시각화 HTML 저장 여부
 
 **반환값:**
@@ -787,58 +826,13 @@ if result and result.get("status") == "completed":
 }
 ```
 
-### 환경 변수 설정
+### api_server.py - FastAPI 백엔드 서버
 
-**참고**: API 키 설정은 [초기 설정](#초기-설정) 섹션을 참조하세요.
-
-`.env` 파일(`/workspaces/AI_inhaler/app_server/.env`)에 `OPENAI_API_KEY`와 `GOOGLE_API_KEY`를 설정해야 합니다.
-
-### 출력 예시
-
-```
-================================================================================
-디바이스 타입: pMDI_type2
-================================================================================
-[모듈 로드] pMDI_type2 모듈을 독립적으로 로드했습니다.
-  - agents.state: /workspaces/AI_inhaler/app_pMDI_type2/agents/state.py
-  - graph_workflow: /workspaces/AI_inhaler/app_pMDI_type2/graph_workflow.py
-
-LLM 모델 초기화 (2개):
-  1. gpt-4.1
-  2. gpt-4.1
-
-분석할 비디오: /workspaces/AI_inhaler/app_server/test_clip.mp4
-
-✅ 분석이 성공적으로 완료되었습니다!
-
-==================================================
-=== 비디오 분석 결과 요약 ===
-==================================================
-
-[비디오 정보]
-  파일명: test_clip.mp4
-  재생시간: 45.2초
-  총 프레임: 1356
-  해상도: 1920x1080px
-
-[최종 판단 결과]
-  sit_stand: SUCCESS (1)
-  shake: SUCCESS (1)
-  ...
-
-[최종 종합 기술]
-  환자는 흡입기를 올바르게 사용했습니다...
-```
-
----
-
-## api_server.py - FastAPI 백엔드 서버
-
-### 개요
+#### 개요
 
 `api_server.py`는 FastAPI 기반의 RESTful API 서버로, 프론트엔드와 백엔드 분석 로직을 연결합니다.
 
-### 주요 기능
+#### 주요 기능
 
 - 비디오 파일 업로드
 - 비동기 분석 작업 실행
@@ -846,9 +840,9 @@ LLM 모델 초기화 (2개):
 - 분석 결과 조회
 - 결과 다운로드 (JSON)
 
-### 사용법
+#### 사용법
 
-#### 1. 서버 시작
+**1. 서버 시작**
 
 ```bash
 cd app_server
@@ -862,7 +856,7 @@ cd app_server
 uvicorn api_server:app --host 0.0.0.0 --port 8000
 ```
 
-#### 2. 서버 확인
+**2. 서버 확인**
 
 ```bash
 curl http://localhost:8000/
@@ -877,9 +871,9 @@ curl http://localhost:8000/
 }
 ```
 
-### API 엔드포인트
+#### API 엔드포인트
 
-#### 1. 서버 상태 확인
+**1. 서버 상태 확인**
 
 ```http
 GET /
@@ -894,7 +888,7 @@ GET /
 }
 ```
 
-#### 2. 서버 설정 정보 조회
+**2. 서버 설정 정보 조회**
 
 ```http
 GET /api/config
@@ -909,7 +903,7 @@ GET /api/config
 }
 ```
 
-#### 3. 비디오 업로드
+**3. 비디오 업로드**
 
 ```http
 POST /api/video/upload
@@ -945,7 +939,7 @@ curl -X POST http://localhost:8000/api/video/upload \
   -F "file=@/path/to/video.mp4"
 ```
 
-#### 4. 분석 시작
+**4. 분석 시작**
 
 ```http
 POST /api/analysis/start
@@ -983,7 +977,7 @@ curl -X POST http://localhost:8000/api/analysis/start \
   }'
 ```
 
-#### 5. 분석 상태 조회
+**5. 분석 상태 조회**
 
 ```http
 GET /api/analysis/status/{analysis_id}
@@ -1008,7 +1002,7 @@ GET /api/analysis/status/{analysis_id}
 - `completed`: 완료
 - `error`: 오류 발생
 
-#### 6. 분석 결과 조회
+**6. 분석 결과 조회**
 
 ```http
 GET /api/analysis/result/{analysis_id}
@@ -1026,17 +1020,7 @@ GET /api/analysis/result/{analysis_id}
     "resolution": "1920x1080",
     "frameCount": 1356
   },
-  "actionSteps": [
-    {
-      "id": "sit_stand",
-      "order": 1,
-      "name": "sit_stand",
-      "description": "...",
-      "time": [5.2, 10.5],
-      "score": [1],
-      "result": "pass"
-    }
-  ],
+  "actionSteps": [...],
   "summary": {
     "totalSteps": 10,
     "passedSteps": 8,
@@ -1052,7 +1036,7 @@ GET /api/analysis/result/{analysis_id}
 }
 ```
 
-#### 7. 결과 다운로드
+**7. 결과 다운로드**
 
 ```http
 GET /api/analysis/download/{analysis_id}?format=json
@@ -1060,7 +1044,7 @@ GET /api/analysis/download/{analysis_id}?format=json
 
 **응답:** JSON 파일 다운로드
 
-### LLM 모델 설정
+#### LLM 모델 설정
 
 `api_server.py` 파일 상단에서 고정된 LLM 모델을 설정할 수 있습니다:
 
@@ -1071,7 +1055,7 @@ FIXED_LLM_MODELS = ["gpt-4.1", "gpt-4.1"]
 
 **참고:** 프론트엔드 요청의 `llmModels`는 무시되고, 서버의 `FIXED_LLM_MODELS`가 항상 사용됩니다.
 
-### 업로드 디렉토리
+#### 업로드 디렉토리
 
 업로드된 비디오 파일은 다음 디렉토리에 저장됩니다:
 
@@ -1079,7 +1063,7 @@ FIXED_LLM_MODELS = ["gpt-4.1", "gpt-4.1"]
 {project_root}/uploads/{video_id}.{extension}
 ```
 
-### CORS 설정
+#### CORS 설정
 
 개발 환경에서는 모든 origin을 허용하도록 설정되어 있습니다:
 
@@ -1095,24 +1079,22 @@ app.add_middleware(
 
 **프로덕션 환경에서는 특정 origin만 허용하도록 변경하는 것을 권장합니다.**
 
----
+### test_api_server.py - API 서버 테스트
 
-## test_api_server.py - API 서버 테스트
-
-### 개요
+#### 개요
 
 `test_api_server.py`는 API 서버의 전체 분석 플로우를 테스트하고 최종 결과를 검증하는 테스트 스크립트입니다.
 
-### 사용법
+#### 사용법
 
-#### 1. 기본 실행
+**1. 기본 실행**
 
 ```bash
 cd app_server
 python test_api_server.py
 ```
 
-#### 2. 테스트 설정 변경
+**2. 테스트 설정 변경**
 
 스크립트 상단의 `TEST_CONFIG`를 수정하여 테스트 설정을 변경할 수 있습니다:
 
@@ -1124,7 +1106,7 @@ TEST_CONFIG = {
 }
 ```
 
-#### 3. 서버 URL 변경
+**3. 서버 URL 변경**
 
 기본 URL이 `http://localhost:8000/api`가 아닌 경우:
 
@@ -1133,7 +1115,7 @@ BASE_URL = "http://your-server:8000/api"
 tester = APIAnalysisTester(base_url=BASE_URL)
 ```
 
-### 테스트 단계
+#### 테스트 단계
 
 스크립트는 다음 단계를 순차적으로 실행합니다:
 
@@ -1147,95 +1129,14 @@ tester = APIAnalysisTester(base_url=BASE_URL)
 8. **app_main.py 출력 형식과 비교** - 결과 형식 검증
 9. **결과 저장** - `test_analysis_result.json` 파일로 저장
 
-### 출력 예시
-
-```
-================================================================================
-API 서버 완전 분석 테스트 시작
-================================================================================
-테스트 설정:
-  - 비디오: test_clip.mp4
-  - 디바이스 타입: pMDI_type2
-  - 개별 리포트 저장: True
-
-================================================================================
-1. 서버 상태 확인
-================================================================================
-✓ 서버 실행 중: AI Inhaler Analysis API (v1.0.0)
-
-================================================================================
-2. 서버 설정 정보 조회
-================================================================================
-✓ 설정 정보 조회 성공
-  버전: 1.0.0
-  LLM 모델: ['gpt-4.1', 'gpt-4.1']
-✓ LLM 모델 검증 통과 (2개 모델)
-
-================================================================================
-3. 비디오 업로드
-================================================================================
-업로드할 파일: test_clip.mp4
-파일 크기: 12.34 MB
-✓ 비디오 업로드 성공
-  Video ID: abc123...
-  파일명: test_clip.mp4
-  파일 크기: 12.34 MB
-
-...
-
-================================================================================
-5. 분석 진행 상태 모니터링
-================================================================================
-[00:00] 상태: processing   | 진행률:   0% | 분석 초기화 중...
-[00:05] 상태: processing   | 진행률:  10% | 비디오 로드 중...
-[00:10] 상태: processing   | 진행률:  25% | 프레임 분석 중...
-...
-
-✓ 분석 완료! (소요 시간: 180초)
-
-================================================================================
-6. 분석 결과 조회 및 검증
-================================================================================
-✓ 결과 조회 성공
-
-================================================================================
-7. 결과 데이터 검증
-================================================================================
-필수 필드 검증:
-  ✓ status: 존재
-  ✓ deviceType: 존재
-  ✓ videoInfo: 존재
-  ...
-```
-
-### 주요 설정
+#### 주요 설정
 
 - **최대 대기 시간**: `MAX_WAIT_TIME = 1800` (30분)
 - **상태 확인 간격**: `POLL_INTERVAL = 5` (5초)
 
-### 결과 파일
+#### 결과 파일
 
 테스트 완료 후 `test_analysis_result.json` 파일이 생성됩니다.
-
-### 오류 처리
-
-서버가 실행되지 않은 경우:
-
-```
-✗ 서버 연결 실패: Connection refused
-
-해결 방법:
-  1. 서버를 시작하세요:
-     cd app_server
-     python api_server.py
-
-  2. 또는 백그라운드로 실행:
-     cd app_server
-     python api_server.py > /tmp/api_server.log 2>&1 &
-
-  3. 서버가 실행 중인지 확인:
-     curl http://localhost:8000/
-```
 
 ---
 
@@ -1243,34 +1144,34 @@ API 서버 완전 분석 테스트 시작
 
 ### 백엔드 서버가 시작되지 않는 경우
 
-1. 포트 8000이 이미 사용 중인지 확인:
+**1. 포트 사용 확인:**
 
-   ```bash
-   lsof -i:8000
-   ```
+```bash
+lsof -i:8000
+```
 
-2. 로그 확인:
+**2. 로그 확인:**
 
-   ```bash
-   tail -f logs/backend.log
-   ```
+```bash
+tail -f logs/backend.log
+```
 
-3. **API 키 설정 확인 (중요)**:
+**3. API 키 설정 확인 (중요):**
 
-   ```bash
-   # .env 파일이 존재하는지 확인
-   ls -la app_server/.env
+```bash
+# .env 파일이 존재하는지 확인
+ls -la app_server/.env
 
-   # .env 파일 내용 확인
-   cat app_server/.env
-   ```
+# .env 파일 내용 확인
+cat app_server/.env
+```
 
-   **필수 확인 사항:**
+**필수 확인 사항:**
 
-   - `/workspaces/AI_inhaler/app_server/.env` 파일이 존재해야 합니다
-   - `OPENAI_API_KEY` 또는 `GOOGLE_API_KEY`가 설정되어 있어야 합니다
-   - 사용하려는 LLM 모델에 맞는 API 키가 설정되어 있어야 합니다
-   - API 키 값 앞뒤에 공백이나 따옴표가 없어야 합니다
+- `/workspaces/AI_inhaler/app_server/.env` 파일이 존재해야 합니다
+- `OPENAI_API_KEY` 또는 `GOOGLE_API_KEY`가 설정되어 있어야 합니다
+- 사용하려는 LLM 모델에 맞는 API 키가 설정되어 있어야 합니다
+- API 키 값 앞뒤에 공백이나 따옴표가 없어야 합니다
 
 ### API 키 관련 오류
 
@@ -1287,12 +1188,12 @@ API 서버 완전 분석 테스트 시작
 
 **해결 방법:**
 
-1. `.env` 파일 경로 확인:
+1. **.env 파일 경로 확인:**
 
    - 정확한 경로: `/workspaces/AI_inhaler/app_server/.env`
    - `app_server` 디렉토리 내부에 있어야 함
 
-2. API 키 확인:
+2. **API 키 확인:**
 
    ```bash
    # 파일 존재 확인
@@ -1302,10 +1203,12 @@ API 서버 완전 분석 테스트 시작
    grep -E "OPENAI_API_KEY|GOOGLE_API_KEY" /workspaces/AI_inhaler/app_server/.env
    ```
 
-3. API 키 재설정:
+3. **API 키 재설정:**
+
    - OpenAI API 키: https://platform.openai.com/api-keys
    - Google API 키: https://makersuite.google.com/app/apikey
-4. 서버 재시작:
+
+4. **서버 재시작:**
    ```bash
    # 현재 실행 중인 서버 종료 (Ctrl+C)
    # 그 다음 다시 시작
@@ -1314,36 +1217,38 @@ API 서버 완전 분석 테스트 시작
 
 ### 프론트엔드 서버가 시작되지 않는 경우
 
-1. 포트 8080이 이미 사용 중인지 확인:
+**1. 포트 사용 확인:**
 
-   ```bash
-   lsof -i:8080
-   ```
+```bash
+lsof -i:8080
+```
 
-2. 로그 확인:
-   ```bash
-   tail -f logs/frontend.log
-   ```
+**2. 로그 확인:**
+
+```bash
+tail -f logs/frontend.log
+```
 
 ### 분석이 완료되지 않는 경우
 
-1. 백엔드 로그 확인:
+**1. 백엔드 로그 확인:**
 
-   ```bash
-   tail -f logs/backend.log
-   ```
+```bash
+tail -f logs/backend.log
+```
 
-2. API 서버 상태 확인:
+**2. API 서버 상태 확인:**
 
-   ```bash
-   curl http://localhost:8000/
-   ```
+```bash
+curl http://localhost:8000/
+```
 
-3. 테스트 스크립트 실행:
-   ```bash
-   cd app_server
-   python test_api_server.py
-   ```
+**3. 테스트 스크립트 실행:**
+
+```bash
+cd app_server
+python test_api_server.py
+```
 
 ### OpenCV 관련 오류 (libGL.so.1 오류)
 
@@ -1361,31 +1266,68 @@ ImportError: libGL.so.1: cannot open shared object file: No such file or directo
 
 **해결 방법:**
 
-1. `opencv-python-headless` 사용 (권장):
+1. **opencv-python-headless 사용 (권장):**
 
    ```bash
    pip uninstall opencv-python
    pip install opencv-python-headless>=4.10.0,<5.0.0
    ```
 
-2. `requirements.txt` 확인:
+2. **requirements.txt 확인:**
    - `opencv-python` 대신 `opencv-python-headless`가 명시되어 있는지 확인
    - 수정 후 재설치: `pip install -r requirements.txt`
 
 **참고:**
 
-- 이 프로젝트는 GUI 기능을 사용하지 않으므로 `opencv-python-headless`로 충분합니다.
-- 모든 플랫폼(WSL, Linux, macOS)에서 동일하게 동작합니다.
+- 이 프로젝트는 GUI 기능을 사용하지 않으므로 `opencv-python-headless`로 충분합니다
+- 모든 플랫폼(WSL, Linux, macOS)에서 동일하게 동작합니다
+
+### Docker 관련 오류
+
+**Docker 데몬이 실행되지 않는 경우:**
+
+- **macOS**: `open -a Docker`
+- **WSL**: `sudo service docker start`
+- **Linux**: `sudo systemctl start docker`
+
+**컨테이너를 찾을 수 없는 경우:**
+
+`start_AI_inhaler.sh` 스크립트가 자동으로 새 컨테이너를 생성합니다. `devcontainer.json` 파일이 올바른지 확인하세요.
+
+**포트 매핑 오류:**
+
+스크립트가 자동으로 컨테이너를 재시작하여 포트 매핑을 설정합니다. 기존 컨테이너가 재시작될 수 있으니 주의하세요.
 
 ---
 
-## 추가 정보
+## 참고 정보
 
-- 프로젝트 루트: `/workspaces/AI_inhaler`
-- 백엔드 디렉토리: `app_server/`
-- 프론트엔드 디렉토리: `webUX/`
-- 업로드 디렉토리: `uploads/`
-- 로그 디렉토리: `logs/`
+### 프로젝트 구조
+
+```
+/workspaces/AI_inhaler/
+├── app_server/              # 백엔드 서버 코드
+│   ├── api_server.py        # FastAPI 서버
+│   ├── app_main.py          # 통합 분석 애플리케이션
+│   ├── test_api_server.py   # API 테스트 스크립트
+│   └── .env                 # API 키 설정 파일
+├── webUX/                   # 프론트엔드 웹 UI
+├── app_pMDI_type1/          # pMDI 타입1 분석 모듈
+├── app_pMDI_type2/          # pMDI 타입2 분석 모듈
+├── app_DPI_type1/           # DPI 타입1 분석 모듈
+├── app_DPI_type2/           # DPI 타입2 분석 모듈
+├── app_DPI_type3/           # DPI 타입3 분석 모듈
+├── app_SMI_type1/           # SMI 타입1 분석 모듈
+├── uploads/                 # 업로드된 비디오 파일
+├── logs/                    # 서버 로그 파일
+│   ├── backend.log          # 백엔드 로그
+│   └── frontend.log         # 프론트엔드 로그
+├── start_AI_inhaler.sh      # 호스트에서 실행하는 통합 스크립트
+├── start_inside_container.sh # 컨테이너 내부에서 실행하는 스크립트
+├── requirements.txt         # Python 패키지 의존성
+└── .devcontainer/           # Dev Container 설정
+    └── devcontainer.json    # 컨테이너 설정 파일
+```
 
 ### 주요 의존성 패키지
 
@@ -1425,6 +1367,42 @@ pip install opencv-python-headless>=4.10.0,<5.0.0
 
 - `libGL.so.1` 오류 없이 동작
 - 추가 시스템 라이브러리 설치 불필요
+
+### 디렉토리 설명
+
+- **프로젝트 루트**: `/workspaces/AI_inhaler`
+- **백엔드 디렉토리**: `app_server/`
+- **프론트엔드 디렉토리**: `webUX/`
+- **업로드 디렉토리**: `uploads/`
+- **로그 디렉토리**: `logs/`
+
+### IP 주소 조회 방법
+
+**Linux/WSL:**
+
+```bash
+# 간단한 방법
+hostname -I | awk '{print $1}'
+
+# 상세 정보
+ip addr show | grep "inet " | grep -v 127.0.0.1
+
+# 기본 게이트웨이로 사용되는 IP (실제 연결에 사용)
+ip route get 8.8.8.8 | awk '{print $7; exit}'
+```
+
+**macOS:**
+
+```bash
+# 모든 인터페이스 확인
+ifconfig | grep "inet " | grep -v 127.0.0.1
+
+# 이더넷 연결
+ifconfig en0 | grep "inet "
+
+# Wi-Fi 연결
+ifconfig en1 | grep "inet "
+```
 
 ---
 
