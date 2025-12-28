@@ -1,7 +1,9 @@
 // API Client Module
 // 백엔드 API 서버와 통신하는 모듈
 
-const API_BASE_URL = 'http://localhost:8000/api';
+// 현재 호스트 기반으로 API URL 동적 설정 (외부 IP 접속 지원)
+// 브라우저가 접속한 호스트(예: localhost, 172.17.0.2)와 동일한 호스트 사용
+const API_BASE_URL = `${window.location.protocol}//${window.location.hostname}:8000/api`;
 
 class APIClient {
     /**
@@ -10,7 +12,9 @@ class APIClient {
      */
     async checkServerHealth() {
         try {
-            const response = await fetch('http://localhost:8000/');
+            // 현재 호스트 기반으로 서버 주소 동적 설정
+            const serverUrl = `${window.location.protocol}//${window.location.hostname}:8000/`;
+            const response = await fetch(serverUrl);
             if (!response.ok) {
                 throw new Error(`서버 응답 오류: ${response.status}`);
             }

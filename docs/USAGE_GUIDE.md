@@ -4,11 +4,518 @@
 
 ## 목차
 
-1. [app_main.py - 통합 분석 애플리케이션](#app_mainpy---통합-분석-애플리케이션)
-2. [api_server.py - FastAPI 백엔드 서버](#api_serverpy---fastapi-백엔드-서버)
-3. [test_api_server.py - API 서버 테스트](#test_api_serverpy---api-서버-테스트)
-4. [start.sh - 서버 시작 스크립트](#startsh---서버-시작-스크립트)
-5. [stop.sh - 서버 종료 스크립트](#stopsh---서버-종료-스크립트)
+1. [초기 설정](#초기-설정)
+2. [macOS 서버 설정](#macos-서버-설정)
+3. [서버 실행 스크립트](#서버-실행-스크립트)
+   - [start_container.sh / stop_container.sh - 컨테이너 내부에서 실행](#start_containersh--stop_containersh---컨테이너-내부에서-실행)
+   - [start_host.sh / stop_host.sh - 호스트에서 실행](#start_hostsh--stop_hostsh---호스트에서-실행)
+4. [전체 워크플로우](#전체-워크플로우)
+5. [app_main.py - 통합 분석 애플리케이션](#app_mainpy---통합-분석-애플리케이션)
+6. [api_server.py - FastAPI 백엔드 서버](#api_serverpy---fastapi-백엔드-서버)
+7. [test_api_server.py - API 서버 테스트](#test_api_serverpy---api-서버-테스트)
+8. [문제 해결](#문제-해결)
+9. [추가 정보](#추가-정보)
+
+---
+
+## 초기 설정
+
+시스템을 사용하기 전에 다음 설정을 완료해야 합니다.
+
+### 1. API 키 설정 (필수)
+
+**중요**: `/workspaces/AI_inhaler/app_server/.env` 파일에 API 키를 설정해야 합니다.
+
+#### .env 파일 생성 및 설정
+
+```bash
+# app_server 디렉토리로 이동
+cd /workspaces/AI_inhaler/app_server
+
+# .env 파일 생성 (이미 존재하는 경우 건너뛰기)
+touch .env
+
+# .env 파일 편집
+nano .env
+# 또는
+vim .env
+```
+
+#### API 키 기록
+
+`.env` 파일에 다음과 같이 API 키를 기록합니다:
+
+```bash
+OPENAI_API_KEY=your-openai-api-key-here
+GOOGLE_API_KEY=your-google-api-key-here
+```
+
+**설명:**
+
+- `OPENAI_API_KEY`: OpenAI 모델(`gpt-4.1`, `gpt-5-nano` 등)을 사용하는 경우 필수
+- `GOOGLE_API_KEY`: Google Gemini 모델(`gemini-2.5-pro` 등)을 사용하는 경우 필수
+- 실제 API 키 값으로 `your-openai-api-key-here`와 `your-google-api-key-here`를 교체해야 합니다
+- 사용하지 않는 API는 해당 줄을 비워두거나 주석 처리할 수 있습니다
+
+**API 키 발급:**
+
+- OpenAI: https://platform.openai.com/api-keys
+- Google Gemini: https://makersuite.google.com/app/apikey
+
+**확인:**
+
+```bash
+# 설정 확인 (키 값은 마스킹하여 출력)
+cat app_server/.env | grep -E "OPENAI_API_KEY|GOOGLE_API_KEY"
+```
+
+### 2. 의존성 패키지 설치
+
+```bash
+# 프로젝트 루트 디렉토리에서
+cd /workspaces/AI_inhaler
+
+# 패키지 설치
+pip install -r requirements.txt
+```
+
+**주요 패키지:**
+
+- `opencv-python-headless`: 비디오/이미지 처리 (WSL/Linux/macOS 호환)
+- `fastapi`, `uvicorn`: 웹 서버
+- `langchain`, `langgraph`: 멀티 에이전트 시스템
+- 기타 의존성은 `requirements.txt` 참조
+
+### 3. 서버 시작
+
+초기 설정이 완료되면 서버를 시작할 수 있습니다:
+
+**컨테이너 내부에서 실행:**
+
+```bash
+./start_container.sh
+```
+
+**호스트에서 실행 (권장):**
+
+```bash
+./start_host.sh
+```
+
+자세한 내용은 [서버 실행 스크립트](#서버-실행-스크립트) 섹션을 참조하세요.
+
+---
+
+## macOS 서버 설정
+
+macOS 서버 환경에서 추가로 확인할 사항:
+
+### 1. Macmini 서버 접속 설정
+
+원격 Macmini 서버에 접속하여 작업하는 방법:
+
+#### 1.1 Macmini 서버 IP 주소 확인
+
+Macmini 서버에서 IP 주소를 확인하려면:
+
+```bash
+# Macmini 서버 터미널에서 실행
+# 이더넷 연결인 경우
+ifconfig en0 | grep "inet "
+
+# Wi-Fi 연결인 경우
+ifconfig en1 | grep "inet "
+
+# 또는 모든 인터페이스 확인
+ifconfig | grep "inet " | grep -v 127.0.0.1
+```
+
+#### 1.2 Cursor에 SSH Config 설정
+
+Cursor에서 Macmini 서버에 SSH로 접속하기 위한 설정:
+
+1. **SSH Config 파일 편집:**
+
+   - Windows: `C:\Users\<사용자명>\.ssh\config`
+   - macOS/Linux: `~/.ssh/config`
+
+2. **다음 내용 추가:**
+
+   ```
+   Host jnu-MacMini-1234
+       HostName 172.30.1.7
+       User jnu
+       Port 22
+   ```
+
+   **설명:**
+
+   - `Host`: 연결에 사용할 별칭 (원하는 이름으로 변경 가능)
+   - `HostName`: Macmini 서버의 IP 주소
+   - `User`: SSH 접속할 사용자명
+   - `Port`: SSH 포트 (기본값: 22)
+
+3. **접속 테스트:**
+
+   ```bash
+   # Cursor 터미널에서
+   ssh jnu-MacMini-1234
+   ```
+
+4. **Cursor에서 원격 연결:**
+   - Command Palette (Ctrl+Shift+P / Cmd+Shift+P)
+   - "Remote-SSH: Connect to Host"
+   - `jnu-MacMini-1234` 선택
+
+#### 1.3 Docker 데몬 실행 확인
+
+Macmini 서버에서 Docker Desktop이 실행 중인지 확인:
+
+```bash
+# Docker Desktop 실행
+open -a Docker
+
+# Docker 데몬 상태 확인
+docker ps
+```
+
+**주의사항:**
+
+- Docker Desktop이 실행되어야 `start_host.sh` 스크립트가 정상 작동합니다
+- 로그인 시 자동 실행하려면 Docker Desktop 설정에서 "Start Docker Desktop when you log in" 옵션 활성화
+
+#### 1.4 OpenGL 설치 (필요시)
+
+일부 환경에서 OpenGL 관련 라이브러리가 필요할 수 있습니다:
+
+```bash
+# Homebrew로 Mesa 설치
+brew install mesa
+```
+
+**참고:**
+
+- 이 프로젝트는 `opencv-python-headless`를 사용하므로 일반적으로 OpenGL 설치가 필요하지 않습니다
+- 다른 의존성 문제가 있는 경우에만 설치하세요
+
+### 2. 방화벽 설정
+
+macOS 시스템 설정에서 포트를 허용해야 할 수 있습니다:
+
+1. **시스템 설정** → **네트워크** → **방화벽**
+2. 방화벽이 활성화되어 있는 경우, 포트 8000과 8080 허용 필요
+3. 또는 터미널에서 Python 허용:
+   ```bash
+   sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/bin/python3
+   ```
+
+### 3. VS Code Dev Container 환경에서의 접속
+
+VS Code Dev Container 환경을 사용하는 경우:
+
+**중요**: `172.17.0.2`는 Docker 컨테이너 내부 IP 주소입니다. Windows 브라우저에서 이 IP로 직접 접근할 수 없습니다.
+
+**올바른 접속 방법:**
+
+1. **VS Code 포트 포워딩 사용 (권장)**:
+
+   - Dev Container는 자동으로 포트를 포워딩합니다 (`.devcontainer/devcontainer.json`의 `forwardPorts: [8080, 8000]`)
+   - Windows 브라우저에서 **`http://localhost:8080`** 으로 접속
+   - 이 방법이 가장 간단하고 안정적입니다
+
+2. **macOS 호스트 IP 사용** (포트 포워딩이 작동하지 않는 경우):
+   - macOS 호스트의 실제 IP 주소를 확인:
+     ```bash
+     # macOS 터미널에서 실행
+     ifconfig | grep "inet " | grep -v 127.0.0.1
+     ```
+   - 예: `192.168.1.100`인 경우 → `http://192.168.1.100:8080`
+
+**포트 포워딩 확인:**
+
+- VS Code 하단 상태 표시줄에서 "Ports" 탭 확인
+- 8080, 8000 포트가 "Forwarded" 상태인지 확인
+
+### 4. Python 인터프리터
+
+macOS에서는 기본적으로 `python3`가 설치되어 있습니다:
+
+- `python3` 명령어 사용 (스크립트에서 자동 선택됨)
+- Homebrew를 통해 설치된 Python 사용 가능
+
+---
+
+## 서버 실행 스크립트
+
+서버를 실행하는 방법은 두 가지가 있습니다:
+
+1. **컨테이너 내부에서 실행**: `start_container.sh` / `stop_container.sh`
+2. **호스트에서 실행**: `start_host.sh` / `stop_host.sh`
+
+---
+
+### start_container.sh / stop_container.sh - 컨테이너 내부에서 실행
+
+#### 개요
+
+컨테이너 내부에서 직접 서버를 시작하고 종료하는 스크립트입니다.
+
+#### 사용 환경
+
+- VS Code Dev Container 내부 터미널에서 실행
+- 컨테이너에 직접 접속하여 실행
+
+#### 사용법
+
+##### 1. 서버 시작
+
+```bash
+# 컨테이너 내부 터미널에서
+./start_container.sh
+```
+
+##### 2. 서버 종료
+
+```bash
+# 컨테이너 내부 터미널에서
+./stop_container.sh
+```
+
+#### 실행 과정
+
+1. **기존 프로세스 정리** - 실행 중인 서버 프로세스 종료
+2. **백엔드 서버 시작** - `api_server.py` 실행 (포트 8000)
+3. **백엔드 상태 확인** - 서버가 정상적으로 시작되었는지 확인
+4. **프론트엔드 서버 시작** - Python HTTP 서버 실행 (포트 8080)
+5. **프론트엔드 상태 확인** - 서버가 정상적으로 시작되었는지 확인
+
+#### 주요 기능
+
+- **자동 프로세스 정리**: 기존 실행 중인 서버 자동 종료
+- **상태 확인**: 서버 시작 후 정상 동작 여부 확인
+- **로그 파일**: 모든 로그를 `logs/` 디렉토리에 저장
+- **PID 파일**: `.server_pids` 파일에 프로세스 ID 저장
+- **크로스 플랫폼 지원**: WSL, Linux, macOS 모두 지원
+
+#### 출력 예시
+
+```
+==========================================
+AI 흡입기 분석 시스템 시작
+==========================================
+
+1. 백엔드 서버 시작 중...
+   백엔드 PID: 12345
+   로그: /workspaces/AI_inhaler/logs/backend.log
+   ✓ 백엔드 서버 실행 중: http://localhost:8000
+
+2. 프론트엔드 서버 시작 중...
+   프론트엔드 PID: 12346
+   로그: /workspaces/AI_inhaler/logs/frontend.log
+   ✓ 프론트엔드 서버 실행 중: http://localhost:8080
+
+==========================================
+✓ 모든 서버가 실행되었습니다!
+==========================================
+
+서버 정보:
+  - 백엔드 API: http://localhost:8000
+  - 프론트엔드: http://localhost:8080
+
+로그 파일:
+  - 백엔드: tail -f /workspaces/AI_inhaler/logs/backend.log
+  - 프론트엔드: tail -f /workspaces/AI_inhaler/logs/frontend.log
+
+서버를 종료하려면:
+  - Ctrl+C를 누르거나
+  - ./stop_container.sh 실행
+
+==========================================
+```
+
+---
+
+### start_host.sh / stop_host.sh - 호스트에서 실행
+
+#### 개요
+
+**호스트(Windows/macOS/Linux)**에서 devcontainer 내부의 서버를 시작하고 종료하는 스크립트입니다.
+
+#### 사용 환경
+
+- 호스트 터미널에서 실행 (컨테이너 내부 접속 불필요)
+- WSL, Linux, macOS 모두 지원
+
+#### 사전 요구사항
+
+1. **Docker 설치 및 실행**
+
+   - Docker Desktop (Windows/macOS) 또는 Docker Engine (Linux)
+   - Docker 데몬이 실행 중이어야 함
+
+2. **Dev Container 실행**
+   - VS Code에서 "Reopen in Container"로 컨테이너가 실행 중이어야 함
+
+#### 사용법
+
+##### 1. 서버 시작
+
+```bash
+# Windows (WSL 또는 Git Bash)
+./start_host.sh
+
+# macOS/Linux
+./start_host.sh
+```
+
+##### 2. 서버 종료
+
+```bash
+./stop_host.sh
+```
+
+#### 컨테이너 자동 감지
+
+스크립트는 다음 방법으로 컨테이너를 자동으로 찾습니다:
+
+1. 이미지 기반 검색 (`mcr.microsoft.com/devcontainers/python:3.11`)
+2. 프로젝트 이름 기반 검색 (`AI_inhaler`)
+3. 마운트 경로 기반 검색 (`/workspaces`)
+4. 모든 실행 중인 컨테이너에서 워크스페이스 경로 확인
+
+#### 수동으로 컨테이너 지정
+
+자동 감지가 실패하는 경우, 컨테이너 이름을 수동으로 지정할 수 있습니다:
+
+```bash
+# 컨테이너 이름 확인
+docker ps
+
+# 컨테이너 이름 지정하여 실행
+CONTAINER_NAME=your-container-name ./start_host.sh
+CONTAINER_NAME=your-container-name ./stop_host.sh
+```
+
+#### 접속 주소
+
+서버가 시작되면 다음 주소로 접속할 수 있습니다:
+
+- **프론트엔드**: `http://localhost:8080`
+- **백엔드 API**: `http://localhost:8000`
+
+VS Code Dev Container의 포트 포워딩이 자동으로 설정되어 `localhost`로 접속 가능합니다.
+
+#### 출력 예시
+
+```
+컨테이너 찾는 중...
+✓ 컨테이너 발견: amazing-username-12345
+
+==========================================
+호스트에서 컨테이너 내부 서버 시작
+==========================================
+컨테이너: amazing-username-12345
+프로젝트: /workspaces/AI_inhaler
+
+==========================================
+AI 흡입기 분석 시스템 시작
+==========================================
+...
+```
+
+#### 문제 해결
+
+##### 컨테이너를 찾을 수 없는 경우
+
+1. **컨테이너가 실행 중인지 확인:**
+
+   ```bash
+   docker ps
+   ```
+
+2. **VS Code에서 컨테이너 재시작:**
+
+   - Command Palette (Ctrl+Shift+P / Cmd+Shift+P)
+   - "Dev Containers: Reopen in Container"
+
+3. **수동으로 컨테이너 이름 지정:**
+   ```bash
+   CONTAINER_NAME=$(docker ps --format "{{.Names}}" | head -1)
+   CONTAINER_NAME=$CONTAINER_NAME ./start_host.sh
+   ```
+
+##### Docker 데몬이 실행되지 않는 경우
+
+- **Windows/macOS**: Docker Desktop을 시작
+- **Linux**: `sudo systemctl start docker`
+
+##### 포트가 이미 사용 중인 경우
+
+```bash
+# 포트 사용 확인
+# Windows (PowerShell)
+netstat -ano | findstr :8080
+netstat -ano | findstr :8000
+
+# macOS/Linux
+lsof -i :8080
+lsof -i :8000
+```
+
+#### 주의사항
+
+- 호스트에서 실행해도 서버는 **컨테이너 내부**에서 실행됩니다
+- 로그 파일은 컨테이너 내부의 `/workspaces/AI_inhaler/logs/`에 저장됩니다
+- 컨테이너를 종료하면 서버도 함께 종료됩니다
+
+---
+
+## 전체 워크플로우
+
+### 1. 시스템 시작
+
+**컨테이너 내부에서 실행:**
+
+```bash
+# 컨테이너 내부 터미널에서
+./start_container.sh
+```
+
+**호스트에서 실행 (권장):**
+
+```bash
+# 호스트 터미널에서
+./start_host.sh
+```
+
+### 2. 웹 브라우저에서 접속
+
+- 로컬: `http://localhost:8080`
+- 원격 서버 (macOS/Linux): `http://{SERVER_IP}:8080`
+- VS Code Dev Container 환경: `http://localhost:8080` (포트 포워딩 사용)
+
+### 3. 분석 수행
+
+1. 기기 선택
+2. 비디오 파일 업로드
+3. 분석 시작
+4. 결과 확인 및 저장
+
+### 4. 시스템 종료
+
+**컨테이너 내부에서 실행한 경우:**
+
+```bash
+# 컨테이너 내부 터미널에서
+./stop_container.sh
+```
+
+**호스트에서 실행한 경우:**
+
+```bash
+# 호스트 터미널에서
+./stop_host.sh
+```
 
 ---
 
@@ -82,6 +589,7 @@ if result and result.get("status") == "completed":
 **매개변수:**
 
 - `device_type` (str): 디바이스 타입
+
   - `pMDI_type1`: Suspension pressurized metered-dose inhaler
   - `pMDI_type2`: Solution pressurized metered-dose inhaler
   - `DPI_type1`: Multi-dose cap-opening dry powder inhaler
@@ -92,6 +600,7 @@ if result and result.get("status") == "completed":
 - `video_path` (str): 분석할 비디오 파일의 절대 경로
 
 - `llm_models` (list): 사용할 LLM 모델 리스트
+
   - OpenAI 모델: `"gpt-4.1"`, `"gpt-5-nano"`, `"gpt-5.1"`, `"gpt-5.2"`
   - Google 모델: `"gemini-2.5-pro"`, `"gemini-3-flash-preview"`, `"gemini-3-pro-preview"`
 
@@ -118,13 +627,9 @@ if result and result.get("status") == "completed":
 
 ### 환경 변수 설정
 
-`.env` 파일에 API 키를 설정해야 합니다:
+**참고**: API 키 설정은 [초기 설정](#초기-설정) 섹션을 참조하세요.
 
-```bash
-# app_server/.env
-OPENAI_API_KEY=your-openai-api-key
-GOOGLE_API_KEY=your-google-api-key
-```
+`.env` 파일(`/workspaces/AI_inhaler/app_server/.env`)에 `OPENAI_API_KEY`와 `GOOGLE_API_KEY`를 설정해야 합니다.
 
 ### 출력 예시
 
@@ -202,6 +707,7 @@ curl http://localhost:8000/
 ```
 
 응답:
+
 ```json
 {
   "message": "AI Inhaler Analysis API",
@@ -218,6 +724,7 @@ GET /
 ```
 
 **응답:**
+
 ```json
 {
   "message": "AI Inhaler Analysis API",
@@ -232,6 +739,7 @@ GET /api/config
 ```
 
 **응답:**
+
 ```json
 {
   "llmModels": ["gpt-4.1", "gpt-4.1"],
@@ -247,9 +755,11 @@ Content-Type: multipart/form-data
 ```
 
 **요청:**
+
 - `file`: 비디오 파일 (MP4, MOV, AVI, MKV)
 
 **응답:**
+
 ```json
 {
   "videoId": "uuid-string",
@@ -267,6 +777,7 @@ Content-Type: multipart/form-data
 ```
 
 **예제 (curl):**
+
 ```bash
 curl -X POST http://localhost:8000/api/video/upload \
   -F "file=@/path/to/video.mp4"
@@ -280,6 +791,7 @@ Content-Type: application/json
 ```
 
 **요청 본문:**
+
 ```json
 {
   "videoId": "uuid-string",
@@ -289,6 +801,7 @@ Content-Type: application/json
 ```
 
 **응답:**
+
 ```json
 {
   "analysisId": "uuid-string",
@@ -297,6 +810,7 @@ Content-Type: application/json
 ```
 
 **예제 (curl):**
+
 ```bash
 curl -X POST http://localhost:8000/api/analysis/start \
   -H "Content-Type: application/json" \
@@ -314,20 +828,19 @@ GET /api/analysis/status/{analysis_id}
 ```
 
 **응답:**
+
 ```json
 {
   "status": "processing",
   "progress": 45,
   "current_stage": "비디오 분석 중...",
-  "logs": [
-    "[10:30:15] 분석 시작",
-    "[10:30:20] 비디오 로드 완료"
-  ],
+  "logs": ["[10:30:15] 분석 시작", "[10:30:20] 비디오 로드 완료"],
   "error": null
 }
 ```
 
 **상태 값:**
+
 - `pending`: 대기 중
 - `processing`: 처리 중
 - `completed`: 완료
@@ -340,6 +853,7 @@ GET /api/analysis/result/{analysis_id}
 ```
 
 **응답:**
+
 ```json
 {
   "status": "completed",
@@ -372,10 +886,7 @@ GET /api/analysis/result/{analysis_id}
     "analysisTime": 180
   },
   "finalSummary": "최종 종합 기술 텍스트...",
-  "individualHtmlPaths": [
-    "/path/to/agent1.html",
-    "/path/to/agent2.html"
-  ]
+  "individualHtmlPaths": ["/path/to/agent1.html", "/path/to/agent2.html"]
 }
 ```
 
@@ -566,223 +1077,82 @@ API 서버 완전 분석 테스트 시작
 
 ---
 
-## start.sh - 서버 시작 스크립트
-
-### 개요
-
-`start.sh`는 백엔드 API 서버와 프론트엔드 웹 서버를 동시에 시작하는 스크립트입니다.
-
-### 사용법
-
-#### 1. 실행 권한 부여 (최초 1회)
-
-```bash
-chmod +x start.sh
-```
-
-#### 2. 서버 시작
-
-```bash
-./start.sh
-```
-
-### 실행 과정
-
-1. **기존 프로세스 정리** - 실행 중인 서버 프로세스 종료
-2. **백엔드 서버 시작** - `api_server.py` 실행 (포트 8000)
-3. **백엔드 상태 확인** - 서버가 정상적으로 시작되었는지 확인
-4. **프론트엔드 서버 시작** - Python HTTP 서버 실행 (포트 8080)
-5. **프론트엔드 상태 확인** - 서버가 정상적으로 시작되었는지 확인
-
-### 출력 예시
-
-```
-==========================================
-AI 흡입기 분석 시스템 시작
-==========================================
-
-1. 백엔드 서버 시작 중...
-   백엔드 PID: 12345
-   로그: /workspaces/AI_inhaler/logs/backend.log
-   ✓ 백엔드 서버 실행 중: http://localhost:8000
-
-2. 프론트엔드 서버 시작 중...
-   프론트엔드 PID: 12346
-   로그: /workspaces/AI_inhaler/logs/frontend.log
-   ✓ 프론트엔드 서버 실행 중: http://localhost:8080
-
-==========================================
-✓ 모든 서버가 실행되었습니다!
-==========================================
-
-서버 정보:
-  - 백엔드 API: http://localhost:8000
-  - 프론트엔드: http://localhost:8080
-
-WSL 환경에서 윈도우 브라우저 접속:
-  - 프론트엔드: http://192.168.1.100:8080
-
-로그 파일:
-  - 백엔드: tail -f /workspaces/AI_inhaler/logs/backend.log
-  - 프론트엔드: tail -f /workspaces/AI_inhaler/logs/frontend.log
-
-서버를 종료하려면:
-  - Ctrl+C를 누르거나
-  - ./stop.sh 실행
-
-==========================================
-```
-
-### 주요 기능
-
-- **자동 프로세스 정리**: 기존 실행 중인 서버 자동 종료
-- **상태 확인**: 서버 시작 후 정상 동작 여부 확인
-- **로그 파일**: 모든 로그를 `logs/` 디렉토리에 저장
-- **PID 파일**: `.server_pids` 파일에 프로세스 ID 저장
-- **WSL 지원**: WSL 환경에서 윈도우 브라우저 접속 정보 제공
-
-### 로그 확인
-
-```bash
-# 백엔드 로그
-tail -f logs/backend.log
-
-# 프론트엔드 로그
-tail -f logs/frontend.log
-```
-
-### 서버 종료
-
-- **Ctrl+C**: 스크립트 실행 중 Ctrl+C로 종료
-- **stop.sh 실행**: 별도 터미널에서 `./stop.sh` 실행
-
----
-
-## stop.sh - 서버 종료 스크립트
-
-### 개요
-
-`stop.sh`는 실행 중인 백엔드와 프론트엔드 서버를 종료하는 스크립트입니다.
-
-### 사용법
-
-#### 1. 실행 권한 부여 (최초 1회)
-
-```bash
-chmod +x stop.sh
-```
-
-#### 2. 서버 종료
-
-```bash
-./stop.sh
-```
-
-### 실행 과정
-
-1. **PID 파일 확인** - `.server_pids` 파일에서 프로세스 ID 읽기
-2. **프로세스 종료** - 저장된 PID의 프로세스 종료
-3. **추가 프로세스 정리** - 다음 프로세스들도 종료:
-   - `api_server.py` 프로세스
-   - `uvicorn.*api_server` 프로세스
-   - 포트 8080을 사용하는 HTTP 서버 프로세스
-
-### 출력 예시
-
-```
-==========================================
-서버 종료 중...
-==========================================
-
-PID 파일에서 프로세스 확인 중...
-프로세스 종료: PID 12345
-프로세스 종료: PID 12346
-
-추가 프로세스 정리 중...
-  ✓ API 서버 프로세스 종료
-  ✓ Uvicorn 프로세스 종료
-  ✓ 프론트엔드 서버 프로세스 종료
-
-==========================================
-✓ 서버가 종료되었습니다.
-==========================================
-```
-
-### 주요 기능
-
-- **PID 파일 기반 종료**: `start.sh`로 시작한 프로세스 종료
-- **추가 프로세스 정리**: PID 파일에 없는 프로세스도 자동 종료
-- **포트 기반 종료**: 포트 8080을 사용하는 프로세스 종료
-
-### 수동 종료 방법
-
-스크립트가 작동하지 않는 경우:
-
-```bash
-# API 서버 종료
-pkill -f api_server.py
-
-# 포트 8080 사용 프로세스 종료
-lsof -ti:8080 | xargs kill -9
-
-# 또는 특정 PID 종료
-kill <PID>
-```
-
----
-
-## 전체 워크플로우
-
-### 1. 시스템 시작
-
-```bash
-# 서버 시작
-./start.sh
-```
-
-### 2. 웹 브라우저에서 접속
-
-- 로컬: http://localhost:8080
-- WSL: http://{WSL_IP}:8080
-
-### 3. 분석 수행
-
-1. 기기 선택
-2. 비디오 파일 업로드
-3. 분석 시작
-4. 결과 확인 및 저장
-
-### 4. 시스템 종료
-
-```bash
-# 서버 종료
-./stop.sh
-```
-
----
-
 ## 문제 해결
 
 ### 백엔드 서버가 시작되지 않는 경우
 
 1. 포트 8000이 이미 사용 중인지 확인:
+
    ```bash
    lsof -i:8000
    ```
 
 2. 로그 확인:
+
    ```bash
    tail -f logs/backend.log
    ```
 
-3. API 키 설정 확인:
+3. **API 키 설정 확인 (중요)**:
+
    ```bash
+   # .env 파일이 존재하는지 확인
+   ls -la app_server/.env
+
+   # .env 파일 내용 확인
    cat app_server/.env
+   ```
+
+   **필수 확인 사항:**
+
+   - `/workspaces/AI_inhaler/app_server/.env` 파일이 존재해야 합니다
+   - `OPENAI_API_KEY` 또는 `GOOGLE_API_KEY`가 설정되어 있어야 합니다
+   - 사용하려는 LLM 모델에 맞는 API 키가 설정되어 있어야 합니다
+   - API 키 값 앞뒤에 공백이나 따옴표가 없어야 합니다
+
+### API 키 관련 오류
+
+**증상:**
+
+- 분석 시작 후 오류 발생
+- 로그에 API 인증 오류 메시지
+
+**원인:**
+
+- `.env` 파일이 없거나 경로가 잘못됨
+- API 키가 설정되지 않음
+- API 키가 잘못됨 (만료, 잘못된 형식 등)
+
+**해결 방법:**
+
+1. `.env` 파일 경로 확인:
+
+   - 정확한 경로: `/workspaces/AI_inhaler/app_server/.env`
+   - `app_server` 디렉토리 내부에 있어야 함
+
+2. API 키 확인:
+
+   ```bash
+   # 파일 존재 확인
+   ls -la /workspaces/AI_inhaler/app_server/.env
+
+   # 파일 내용 확인 (키 값은 보안상 마스킹됨)
+   grep -E "OPENAI_API_KEY|GOOGLE_API_KEY" /workspaces/AI_inhaler/app_server/.env
+   ```
+
+3. API 키 재설정:
+   - OpenAI API 키: https://platform.openai.com/api-keys
+   - Google API 키: https://makersuite.google.com/app/apikey
+4. 서버 재시작:
+   ```bash
+   ./stop_host.sh
+   ./start_host.sh
    ```
 
 ### 프론트엔드 서버가 시작되지 않는 경우
 
 1. 포트 8080이 이미 사용 중인지 확인:
+
    ```bash
    lsof -i:8080
    ```
@@ -795,11 +1165,13 @@ kill <PID>
 ### 분석이 완료되지 않는 경우
 
 1. 백엔드 로그 확인:
+
    ```bash
    tail -f logs/backend.log
    ```
 
 2. API 서버 상태 확인:
+
    ```bash
    curl http://localhost:8000/
    ```
@@ -809,6 +1181,38 @@ kill <PID>
    cd app_server
    python test_api_server.py
    ```
+
+### OpenCV 관련 오류 (libGL.so.1 오류)
+
+**증상:**
+
+```
+ImportError: libGL.so.1: cannot open shared object file: No such file or directory
+```
+
+**원인:**
+
+- `opencv-python` 패키지를 사용한 경우 발생
+- macOS에서는 `libGL.so.1` 라이브러리가 없음
+- WSL/Linux에서도 일부 환경에서는 누락될 수 있음
+
+**해결 방법:**
+
+1. `opencv-python-headless` 사용 (권장):
+
+   ```bash
+   pip uninstall opencv-python
+   pip install opencv-python-headless>=4.10.0,<5.0.0
+   ```
+
+2. `requirements.txt` 확인:
+   - `opencv-python` 대신 `opencv-python-headless`가 명시되어 있는지 확인
+   - 수정 후 재설치: `pip install -r requirements.txt`
+
+**참고:**
+
+- 이 프로젝트는 GUI 기능을 사용하지 않으므로 `opencv-python-headless`로 충분합니다.
+- 모든 플랫폼(WSL, Linux, macOS)에서 동일하게 동작합니다.
 
 ---
 
@@ -820,9 +1224,47 @@ kill <PID>
 - 업로드 디렉토리: `uploads/`
 - 로그 디렉토리: `logs/`
 
+### 주요 의존성 패키지
+
+#### OpenCV (opencv-python-headless)
+
+이 프로젝트는 **`opencv-python-headless`** 패키지를 사용합니다.
+
+**사용 이유:**
+
+- 서버 환경(디스플레이 없음)에 최적화
+- GUI 의존성(`libGL.so.1` 등) 없이 동작
+- WSL, Linux, macOS 모든 플랫폼에서 정상 작동
+- 비디오/이미지 처리 기능은 `opencv-python`과 동일
+
+**지원 기능:**
+
+- `cv2.VideoCapture` - 비디오 파일 읽기
+- `cv2.imread` - 이미지 읽기
+- `cv2.imwrite` - 이미지 저장
+- `cv2.imencode` - 이미지 인코딩
+- `cv2.cvtColor` - 색상 변환
+- `cv2.resize` - 이미지 크기 조정
+- `cv2.VideoWriter` - 비디오 파일 쓰기
+
+**주의사항:**
+
+- `cv2.imshow()`, `cv2.waitKey()` 등 GUI 기능은 사용 불가
+- 현재 코드베이스에서는 GUI 기능을 사용하지 않으므로 문제 없음
+
+**설치:**
+
+```bash
+pip install opencv-python-headless>=4.10.0,<5.0.0
+```
+
+**macOS 환경에서의 이점:**
+
+- `libGL.so.1` 오류 없이 동작
+- 추가 시스템 라이브러리 설치 불필요
+
 ---
 
 ## 라이선스 및 저작권
 
 이 문서는 AI 흡입기 분석 시스템의 사용 가이드입니다.
-

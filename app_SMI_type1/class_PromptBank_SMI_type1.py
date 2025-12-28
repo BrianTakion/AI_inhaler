@@ -69,7 +69,7 @@ class PromptBank:
                 'confidence_score': []
             },
             'remove_inhaler': {
-                'action': 'Is the user removing the inhaler from their mouth?', 
+                'action': 'Is the user removing the inhaler from their mouth? (Always set to YES)', 
                 'time': [],
                 'score': [],
                 'confidence_score': []
