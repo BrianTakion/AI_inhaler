@@ -31,7 +31,7 @@ from app_server import app_main
 # "gpt-4.1", "gpt-5-nano", "gpt-5.1", "gpt-5.2"
 # "gemini-2.5-pro", "gemini-3-flash-preview", "gemini-3-pro-preview"    
 #FIXED_LLM_MODELS = ["gpt-4.1", "gpt-5.1", "gemini-2.5-pro", "gemini-3-flash-preview"]
-FIXED_LLM_MODELS = ["gpt-4.1", "gpt-4.1"]
+FIXED_LLM_MODELS = ["gpt-4.1", "gpt-4.1", "gemini-3-flash-preview", "gemini-3-flash-preview"]
 
 # ============================================
 # FastAPI 앱 초기화

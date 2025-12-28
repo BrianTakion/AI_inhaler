@@ -35,6 +35,21 @@
   "postCreateCommand": "pip install -r requirements.txt",
 
   "forwardPorts": [8080, 8000],
+  "portsAttributes": {
+    "8080": {
+      "label": "Frontend",
+      "onAutoForward": "notify"
+    },
+    "8000": {
+      "label": "Backend API",
+      "onAutoForward": "notify"
+    }
+  },
+
+  "runArgs": [
+    "-p", "8080:8080",
+    "-p", "8000:8000"
+  ],
 
   "remoteUser": "root"
 }
