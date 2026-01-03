@@ -67,6 +67,12 @@ pip install -r requirements.txt
 
 - **프론트엔드**: `http://localhost:8080`
 - **백엔드 API**: `http://localhost:8000`
+- **서버 상태**: `http://localhost:8000/api/stats` (다중 사용자 환경 모니터링)
+
+**다중 사용자 지원:**
+- 시스템은 여러 사용자의 동시 분석 요청을 지원합니다
+- 최대 5개까지 동시 실행, 초과 시 자동 대기
+- 각 분석은 독립적인 프로세스에서 실행되어 서로 간섭 없음
 
 ---
 
@@ -692,10 +698,16 @@ sudo service docker start
 ### 3. 분석 수행
 
 1. **기기 선택** - 웹 UI에서 흡입기 타입 선택
-2. **비디오 파일 업로드** - 분석할 비디오 파일 업로드
+2. **비디오 파일 업로드** - 분석할 비디오 파일 업로드 (최대 500MB)
 3. **분석 시작** - 분석 작업 시작
 4. **결과 확인** - 분석 진행 상황 모니터링
 5. **결과 저장** - 분석 결과 확인 및 저장
+
+**다중 사용자 환경:**
+- 여러 사용자가 동시에 분석 요청 가능
+- 최대 5개까지 동시 실행, 초과 시 자동 대기
+- 각 분석은 독립적인 프로세스에서 실행되어 서로 간섭 없음
+- 서버 상태는 `/api/stats` 엔드포인트로 확인 가능
 
 ### 4. 시스템 종료
 
@@ -832,13 +844,22 @@ if result and result.get("status") == "completed":
 
 `api_server.py`는 FastAPI 기반의 RESTful API 서버로, 프론트엔드와 백엔드 분석 로직을 연결합니다.
 
+**다중 사용자 지원:**
+- 프로세스 격리를 통한 동시 분석 지원
+- 동시 분석 수 제한 (기본 5개)
+- 프로세스 타임아웃 관리 (기본 1시간)
+- 자동 파일 정리 스케줄러
+- 서버 상태 모니터링
+
 #### 주요 기능
 
-- 비디오 파일 업로드
-- 비동기 분석 작업 실행
+- 비디오 파일 업로드 (파일 크기 및 형식 검증)
+- 비동기 분석 작업 실행 (프로세스 격리)
 - 분석 상태 조회
 - 분석 결과 조회
 - 결과 다운로드 (JSON)
+- 서버 상태 통계 조회
+- 자동 파일 정리 (24시간 이상 된 파일)
 
 #### 사용법
 
@@ -913,6 +934,13 @@ Content-Type: multipart/form-data
 **요청:**
 
 - `file`: 비디오 파일 (MP4, MOV, AVI, MKV)
+- 최대 파일 크기: 500MB
+- 허용 확장자: `.mp4`, `.mov`, `.avi`, `.mkv`
+
+**파일 검증:**
+- 확장자 검증: 업로드 시 즉시 검증
+- 파일 크기 검증: 스트리밍 방식으로 실시간 검증
+- 크기 초과 시 파일 삭제 후 오류 반환
 
 **응답:**
 
@@ -1044,6 +1072,94 @@ GET /api/analysis/download/{analysis_id}?format=json
 
 **응답:** JSON 파일 다운로드
 
+**8. 서버 상태 통계 조회**
+
+```http
+GET /api/stats
+```
+
+**응답:**
+
+```json
+{
+  "currentAnalyses": 2,
+  "maxConcurrentAnalyses": 5,
+  "activeAnalyses": 2,
+  "completedAnalyses": 15,
+  "errorAnalyses": 1,
+  "uploadedFiles": 18,
+  "uploadedSizeMB": 1250.5,
+  "processTimeoutSeconds": 3600,
+  "cleanupDurationHours": 24
+}
+```
+
+**필드 설명:**
+- `currentAnalyses`: 현재 실행 중인 분석 작업 수
+- `maxConcurrentAnalyses`: 최대 동시 분석 수
+- `activeAnalyses`: 활성 분석 작업 수 (pending + processing)
+- `completedAnalyses`: 완료된 분석 작업 수
+- `errorAnalyses`: 오류 발생한 분석 작업 수
+- `uploadedFiles`: 업로드된 파일 수
+- `uploadedSizeMB`: 업로드된 파일 총 크기 (MB)
+- `processTimeoutSeconds`: 프로세스 타임아웃 (초)
+- `cleanupDurationHours`: 파일 정리 기준 시간 (시간)
+
+#### 다중 사용자 지원
+
+**프로세스 격리:**
+- 각 분석 요청은 별도의 프로세스에서 실행됩니다
+- `multiprocessing`을 사용하여 `sys.path` 및 `sys.modules` 오염 방지
+- 동시에 서로 다른 `device_type` 분석해도 충돌 없음
+- 메모리 격리로 상태 오염 방지
+
+**동시 분석 제한:**
+- `Semaphore`를 사용하여 동시 분석 수 제한
+- 기본값: `MAX_CONCURRENT_ANALYSES = 5`
+- 제한 초과 시 대기 상태로 전환
+- 분석 완료 시 대기 중인 작업 자동 시작
+
+**프로세스 타임아웃:**
+- 기본값: `PROCESS_TIMEOUT = 3600` (1시간)
+- 타임아웃 초과 시 프로세스 자동 종료
+- `terminate()` → 10초 대기 → `kill()` 순서로 강제 종료
+
+**파일 업로드 제한:**
+- 최대 파일 크기: `MAX_FILE_SIZE = 500MB`
+- 허용 확장자: `.mp4`, `.mov`, `.avi`, `.mkv`
+- 업로드 시 실시간 크기 검증
+
+**자동 파일 정리:**
+- 24시간 이상 된 파일 자동 삭제
+- 1시간마다 스케줄러 실행
+- 서버 시작 시 즉시 한 번 정리 실행
+- `uploads/` 디렉토리의 비디오 파일 및 결과 JSON 파일 정리
+
+#### 서버 설정
+
+`api_server.py` 파일 상단에서 다음 설정을 변경할 수 있습니다:
+
+```python
+# 동시 분석 제한
+MAX_CONCURRENT_ANALYSES = 5
+
+# 프로세스 타임아웃 (초)
+PROCESS_TIMEOUT = 3600  # 1시간
+
+# 파일 업로드 제한
+MAX_FILE_SIZE = 500 * 1024 * 1024  # 500MB
+ALLOWED_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv'}
+
+# 파일 정리 스케줄러 설정
+CLEANUP_OLD_FILES_DURATION = 24  # 24 hours
+```
+
+**설정 변경 시 고려사항:**
+- `MAX_CONCURRENT_ANALYSES`: 서버 리소스에 따라 조정 (메모리, CPU 사용량 고려)
+- `PROCESS_TIMEOUT`: 분석에 필요한 최대 시간에 따라 조정
+- `MAX_FILE_SIZE`: 디스크 용량 및 네트워크 대역폭 고려
+- `CLEANUP_OLD_FILES_DURATION`: 디스크 용량 및 보관 기간 요구사항 고려
+
 #### LLM 모델 설정
 
 `api_server.py` 파일 상단에서 고정된 LLM 모델을 설정할 수 있습니다:
@@ -1078,6 +1194,29 @@ app.add_middleware(
 ```
 
 **프로덕션 환경에서는 특정 origin만 허용하도록 변경하는 것을 권장합니다.**
+
+#### 다중 사용자 환경에서의 동작
+
+**동시 요청 처리:**
+1. 여러 사용자가 동시에 분석 요청 시, 최대 5개까지 동시 실행
+2. 초과 요청은 대기 상태로 전환
+3. 분석 완료 시 대기 중인 작업 자동 시작
+
+**프로세스 격리 장점:**
+- 각 분석이 독립적인 프로세스에서 실행되어 서로 간섭 없음
+- `sys.path`, `sys.modules` 오염 방지
+- 메모리 격리로 상태 공유 문제 없음
+- 프로세스 크래시가 다른 분석에 영향 없음
+
+**리소스 관리:**
+- 동시 분석 수 제한으로 메모리 및 CPU 사용량 제어
+- 프로세스 타임아웃으로 무한 대기 방지
+- 자동 파일 정리로 디스크 공간 관리
+
+**모니터링:**
+- `/api/stats` 엔드포인트로 서버 상태 실시간 확인
+- 현재 실행 중인 분석 수, 완료/오류 통계 확인
+- 업로드된 파일 수 및 크기 확인
 
 ### test_api_server.py - API 서버 테스트
 
@@ -1281,6 +1420,45 @@ ImportError: libGL.so.1: cannot open shared object file: No such file or directo
 
 - 이 프로젝트는 GUI 기능을 사용하지 않으므로 `opencv-python-headless`로 충분합니다
 - 모든 플랫폼(WSL, Linux, macOS)에서 동일하게 동작합니다
+
+### 다중 사용자 환경 관련 문제
+
+**분석이 대기 상태에서 진행되지 않는 경우:**
+
+1. **동시 분석 제한 확인:**
+   ```bash
+   curl http://localhost:8000/api/stats
+   ```
+   - `currentAnalyses`가 `maxConcurrentAnalyses`에 도달했는지 확인
+   - 다른 분석이 완료되면 자동으로 시작됨
+
+2. **서버 리소스 확인:**
+   - 메모리 및 CPU 사용량 확인
+   - 필요시 `MAX_CONCURRENT_ANALYSES` 값 조정
+
+**프로세스 타임아웃 오류:**
+
+- 분석이 1시간 이상 소요되는 경우 타임아웃 발생
+- `api_server.py`의 `PROCESS_TIMEOUT` 값을 증가시켜 해결
+- 또는 비디오 길이를 줄이거나 분석 로직 최적화 고려
+
+**디스크 공간 부족:**
+
+- 자동 파일 정리 스케줄러가 24시간마다 실행됨
+- 즉시 정리가 필요한 경우:
+  ```bash
+  # 24시간 이상 된 파일 수동 삭제
+  find uploads/ -type f -mtime +1 -delete
+  ```
+- `CLEANUP_OLD_FILES_DURATION` 값을 줄여 정리 주기 단축 가능
+
+**동시 분석 시 충돌:**
+
+- 프로세스 격리로 인해 일반적으로 충돌 없음
+- 문제 발생 시 서버 로그 확인:
+  ```bash
+  tail -f logs/backend.log
+  ```
 
 ### Docker 관련 오류
 

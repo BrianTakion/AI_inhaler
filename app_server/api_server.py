@@ -4,6 +4,13 @@
 """
 FastAPI 기반 백엔드 API 서버
 프론트엔드와 백엔드 분석 로직을 연결합니다.
+
+[다중 사용자 지원]
+- multiprocessing을 사용하여 각 분석 요청을 별도 프로세스에서 실행
+- sys.path 오염 및 경쟁 조건 방지
+- 동시 분석 제한 (Semaphore)
+- 프로세스 타임아웃
+- 파일 검증 및 정리 스케줄러
 """
 
 import os
@@ -12,8 +19,13 @@ import uuid
 import asyncio
 from pathlib import Path
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timedelta
 import shutil
+import multiprocessing
+from multiprocessing import Process, Queue
+import traceback
+import threading
+import time
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,14 +36,30 @@ from pydantic import BaseModel, Field
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
-# app_main 모듈 import, app_main.run_device_analysis() 함수 사용
-from app_server import app_main
+# 주의: app_main은 별도 프로세스에서 import됨 (프로세스 격리)
+# from app_server import app_main  # 직접 import 제거
 
 # 고정된 LLM 모델 설정
 # "gpt-4.1", "gpt-5-nano", "gpt-5.1", "gpt-5.2"
 # "gemini-2.5-pro", "gemini-3-flash-preview", "gemini-3-pro-preview"    
 #FIXED_LLM_MODELS = ["gpt-4.1", "gpt-5.1", "gemini-2.5-pro", "gemini-3-flash-preview"]
 FIXED_LLM_MODELS = ["gpt-4.1", "gpt-4.1", "gemini-3-flash-preview", "gemini-3-flash-preview"]
+
+# ============================================
+# 자원 제한 및 파일 관리 설정
+# ============================================
+# 동시 분석 제한
+MAX_CONCURRENT_ANALYSES = 5
+
+# 프로세스 타임아웃 (초)
+PROCESS_TIMEOUT = 3600  # 1시간
+
+# 파일 업로드 제한
+MAX_FILE_SIZE = 500 * 1024 * 1024  # 500MB
+ALLOWED_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv'}
+
+# 파일 정리 스케줄러 설정
+CLEANUP_OLD_FILES_DURATION = 24  # 24 hours
 
 # ============================================
 # FastAPI 앱 초기화
@@ -58,6 +86,23 @@ analysis_storage: Dict[str, Dict[str, Any]] = {}
 # 업로드된 비디오 저장 디렉토리
 UPLOAD_DIR = Path(project_root) / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
+
+# 동시 분석 제한을 위한 Semaphore
+analysis_semaphore: Optional[asyncio.Semaphore] = None
+
+def get_analysis_semaphore() -> asyncio.Semaphore:
+    """
+    asyncio Semaphore를 lazy 초기화하여 반환
+    (이벤트 루프가 실행 중일 때만 생성 가능)
+    """
+    global analysis_semaphore
+    if analysis_semaphore is None:
+        analysis_semaphore = asyncio.Semaphore(MAX_CONCURRENT_ANALYSES)
+    return analysis_semaphore
+
+# 현재 진행 중인 분석 수 추적
+current_analysis_count = 0
+analysis_count_lock = threading.Lock()
 
 # ============================================
 # Pydantic 모델
@@ -208,12 +253,59 @@ def convert_backend_report_to_frontend(report: Dict[str, Any], final_state: Dict
 
 
 # ============================================
-# 동기 분석 실행 래퍼 함수
+# 프로세스 격리 기반 분석 실행 함수
 # ============================================
-def _run_analysis_sync(device_type: str, video_path: str, llm_models: List[str], save_individual_report: bool):
+def _run_analysis_in_process(result_queue: Queue, device_type: str, video_path: str, llm_models: List[str], save_individual_report: bool):
     """
-    동기 분석 실행 래퍼 함수
-    run_in_executor에서 사용하기 위해 변수를 명시적으로 전달
+    별도 프로세스에서 분석을 실행하는 함수
+    
+    [프로세스 격리 장점]
+    - 각 프로세스는 독립적인 sys.path, sys.modules 보유
+    - 동시에 서로 다른 device_type 분석해도 충돌 없음
+    - 메모리 격리로 상태 오염 방지
+    
+    Args:
+        result_queue: 결과 전달용 큐
+        device_type: 디바이스 타입
+        video_path: 비디오 파일 경로
+        llm_models: LLM 모델 리스트
+        save_individual_report: 개별 리포트 저장 여부
+    """
+    try:
+        # 프로세스 내에서 app_main import (격리된 환경)
+        from app_server import app_main
+        
+        result = app_main.run_device_analysis(
+            device_type=device_type,
+            video_path=video_path,
+            llm_models=llm_models,
+            save_individual_report=save_individual_report
+        )
+        
+        # 결과를 큐에 전달
+        result_queue.put({
+            "success": True,
+            "result": result
+        })
+    except Exception as e:
+        # 예외 발생 시 에러 정보 전달
+        result_queue.put({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        })
+
+
+def _run_analysis_with_process_isolation(device_type: str, video_path: str, llm_models: List[str], save_individual_report: bool) -> Dict[str, Any]:
+    """
+    multiprocessing을 사용하여 프로세스 격리된 환경에서 분석 실행
+    
+    이 함수는 동기 함수로, run_in_executor에서 호출됩니다.
+    별도 프로세스를 생성하여 분석을 실행하고 결과를 반환합니다.
+    
+    [프로세스 타임아웃]
+    - PROCESS_TIMEOUT 초 후에 프로세스를 강제 종료
+    - terminate() 후 10초 대기, 그래도 살아있으면 kill()
     
     Args:
         device_type: 디바이스 타입
@@ -222,14 +314,67 @@ def _run_analysis_sync(device_type: str, video_path: str, llm_models: List[str],
         save_individual_report: 개별 리포트 저장 여부
         
     Returns:
-        분석 결과
+        분석 결과 딕셔너리
     """
-    return app_main.run_device_analysis(
-        device_type=device_type,
-        video_path=video_path,
-        llm_models=llm_models,
-        save_individual_report=save_individual_report
+    # 결과 전달용 큐 생성
+    result_queue = Queue()
+    
+    # 별도 프로세스에서 분석 실행
+    process = Process(
+        target=_run_analysis_in_process,
+        args=(result_queue, device_type, video_path, llm_models, save_individual_report)
     )
+    
+    print(f"[프로세스 격리] 분석 프로세스 시작 (device_type: {device_type}, PID: {os.getpid()}, timeout: {PROCESS_TIMEOUT}s)")
+    process.start()
+    
+    # 프로세스 완료 대기 (타임아웃 적용)
+    process.join(timeout=PROCESS_TIMEOUT)
+    
+    # 타임아웃 체크: 프로세스가 아직 살아있으면 강제 종료
+    if process.is_alive():
+        print(f"[프로세스 격리] 타임아웃 ({PROCESS_TIMEOUT}s) - 프로세스 강제 종료 시도 (device_type: {device_type})")
+        
+        # 먼저 terminate() 시도 (graceful shutdown)
+        process.terminate()
+        process.join(timeout=10)
+        
+        # 그래도 살아있으면 kill() (강제 종료)
+        if process.is_alive():
+            print(f"[프로세스 격리] terminate 실패, kill 시도 (device_type: {device_type})")
+            process.kill()
+            process.join(timeout=5)
+        
+        return {
+            "status": "error",
+            "errors": [f"분석 시간 초과 ({PROCESS_TIMEOUT}초). 프로세스가 강제 종료되었습니다."]
+        }
+    
+    # 결과 가져오기
+    if not result_queue.empty():
+        queue_result = result_queue.get()
+        
+        if queue_result.get("success"):
+            print(f"[프로세스 격리] 분석 완료 (device_type: {device_type})")
+            return queue_result.get("result")
+        else:
+            # 에러 발생
+            error_msg = queue_result.get("error", "알 수 없는 오류")
+            tb = queue_result.get("traceback", "")
+            print(f"[프로세스 격리] 분석 오류: {error_msg}")
+            if tb:
+                print(tb)
+            return {
+                "status": "error",
+                "errors": [error_msg]
+            }
+    else:
+        # 큐가 비어있음 - 프로세스가 비정상 종료
+        print(f"[프로세스 격리] 프로세스 비정상 종료 (exit_code: {process.exitcode})")
+        return {
+            "status": "error",
+            "errors": [f"분석 프로세스가 비정상 종료됨 (exit_code: {process.exitcode})"]
+        }
 
 
 # ============================================
@@ -244,54 +389,90 @@ async def run_analysis_async(
 ):
     """
     백그라운드에서 분석을 실행하는 비동기 함수
-    """
-    try:
-        # 상태 업데이트: processing
-        analysis_storage[analysis_id]["status"] = "processing"
-        analysis_storage[analysis_id]["current_stage"] = "분석 초기화 중..."
-        analysis_storage[analysis_id]["logs"].append(f"[{datetime.now().strftime('%H:%M:%S')}] 분석 시작 (device_type: {device_type})")
-        
-        # 동기 함수를 비동기로 실행 (별도 스레드에서)
-        # 래퍼 함수를 사용하여 변수를 명시적으로 전달 (클로저 문제 방지)
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            None,
-            _run_analysis_sync,
-            device_type,
-            video_path,
-            llm_models,
-            save_individual_report
-        )
-        
-        if result and result.get("status") == "completed":
-            # 성공
-            analysis_storage[analysis_id]["status"] = "completed"
-            analysis_storage[analysis_id]["progress"] = 100
-            analysis_storage[analysis_id]["current_stage"] = "분석 완료"
-            analysis_storage[analysis_id]["logs"].append(f"[{datetime.now().strftime('%H:%M:%S')}] 분석 완료")
-            
-            # 결과 저장
-            analysis_storage[analysis_id]["result"] = convert_backend_report_to_frontend(
-                result.get("final_report", {}),
-                result
-            )
-            analysis_storage[analysis_id]["result"]["deviceType"] = device_type
-            analysis_storage[analysis_id]["raw_result"] = result
-        else:
-            # 실패
-            analysis_storage[analysis_id]["status"] = "error"
-            analysis_storage[analysis_id]["error"] = "분석 중 오류가 발생했습니다."
-            if result and result.get("errors"):
-                analysis_storage[analysis_id]["error"] = "; ".join(result.get("errors", []))
-            analysis_storage[analysis_id]["logs"].append(f"[{datetime.now().strftime('%H:%M:%S')}] 오류 발생")
     
-    except Exception as e:
-        # 예외 처리
-        analysis_storage[analysis_id]["status"] = "error"
-        analysis_storage[analysis_id]["error"] = str(e)
-        analysis_storage[analysis_id]["logs"].append(f"[{datetime.now().strftime('%H:%M:%S')}] 예외 발생: {str(e)}")
-        import traceback
-        traceback.print_exc()
+    [다중 사용자 지원]
+    - multiprocessing으로 프로세스 격리하여 분석 실행
+    - 각 분석은 독립적인 프로세스에서 실행됨
+    - sys.path, sys.modules 오염 없음
+    
+    [동시 분석 제한]
+    - Semaphore를 사용하여 동시 분석 수 제한 (MAX_CONCURRENT_ANALYSES)
+    """
+    global current_analysis_count
+    
+    # Semaphore 획득 대기
+    semaphore = get_analysis_semaphore()
+    
+    # 대기 상태 로그
+    with analysis_count_lock:
+        waiting_count = MAX_CONCURRENT_ANALYSES - semaphore._value if hasattr(semaphore, '_value') else current_analysis_count
+    
+    if waiting_count >= MAX_CONCURRENT_ANALYSES:
+        analysis_storage[analysis_id]["current_stage"] = f"대기 중... (동시 분석 제한: {MAX_CONCURRENT_ANALYSES}개)"
+        analysis_storage[analysis_id]["logs"].append(
+            f"[{datetime.now().strftime('%H:%M:%S')}] 동시 분석 제한으로 대기 중 (현재 {waiting_count}개 실행 중)"
+        )
+    
+    async with semaphore:
+        # 현재 분석 수 증가
+        with analysis_count_lock:
+            current_analysis_count += 1
+            print(f"[동시 분석 제한] 분석 시작 (현재 {current_analysis_count}/{MAX_CONCURRENT_ANALYSES}개)")
+        
+        try:
+            # 상태 업데이트: processing
+            analysis_storage[analysis_id]["status"] = "processing"
+            analysis_storage[analysis_id]["current_stage"] = "분석 초기화 중..."
+            analysis_storage[analysis_id]["logs"].append(
+                f"[{datetime.now().strftime('%H:%M:%S')}] 분석 시작 (device_type: {device_type}, 프로세스 격리 모드, 타임아웃: {PROCESS_TIMEOUT}s)"
+            )
+            
+            # 프로세스 격리된 환경에서 분석 실행
+            # run_in_executor로 비동기 래핑 (블로킹 방지)
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(
+                None,
+                _run_analysis_with_process_isolation,
+                device_type,
+                video_path,
+                llm_models,
+                save_individual_report
+            )
+            
+            if result and result.get("status") == "completed":
+                # 성공
+                analysis_storage[analysis_id]["status"] = "completed"
+                analysis_storage[analysis_id]["progress"] = 100
+                analysis_storage[analysis_id]["current_stage"] = "분석 완료"
+                analysis_storage[analysis_id]["logs"].append(f"[{datetime.now().strftime('%H:%M:%S')}] 분석 완료")
+                
+                # 결과 저장
+                analysis_storage[analysis_id]["result"] = convert_backend_report_to_frontend(
+                    result.get("final_report", {}),
+                    result
+                )
+                analysis_storage[analysis_id]["result"]["deviceType"] = device_type
+                analysis_storage[analysis_id]["raw_result"] = result
+            else:
+                # 실패
+                analysis_storage[analysis_id]["status"] = "error"
+                analysis_storage[analysis_id]["error"] = "분석 중 오류가 발생했습니다."
+                if result and result.get("errors"):
+                    analysis_storage[analysis_id]["error"] = "; ".join(result.get("errors", []))
+                analysis_storage[analysis_id]["logs"].append(f"[{datetime.now().strftime('%H:%M:%S')}] 오류 발생")
+        
+        except Exception as e:
+            # 예외 처리
+            analysis_storage[analysis_id]["status"] = "error"
+            analysis_storage[analysis_id]["error"] = str(e)
+            analysis_storage[analysis_id]["logs"].append(f"[{datetime.now().strftime('%H:%M:%S')}] 예외 발생: {str(e)}")
+            traceback.print_exc()
+        
+        finally:
+            # 현재 분석 수 감소
+            with analysis_count_lock:
+                current_analysis_count -= 1
+                print(f"[동시 분석 제한] 분석 종료 (현재 {current_analysis_count}/{MAX_CONCURRENT_ANALYSES}개)")
 
 
 # ============================================
@@ -304,18 +485,47 @@ async def upload_video(
 ):
     """
     비디오 파일 업로드
+    
+    [파일 검증]
+    - 확장자 검증: ALLOWED_EXTENSIONS (.mp4, .mov, .avi, .mkv)
+    - 파일 크기 검증: MAX_FILE_SIZE (500MB)
     """
     try:
-        # 파일 저장
+        # 1. 확장자 검증
+        file_extension = Path(file.filename).suffix.lower()
+        if file_extension not in ALLOWED_EXTENSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"지원하지 않는 파일 형식입니다. 허용된 형식: {', '.join(ALLOWED_EXTENSIONS)}"
+            )
+        
+        # 2. 파일 크기 검증 (스트리밍 방식으로 읽어서 검증)
         video_id = str(uuid.uuid4())
-        file_extension = Path(file.filename).suffix
         saved_path = UPLOAD_DIR / f"{video_id}{file_extension}"
         
-        with open(saved_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        # 파일을 청크 단위로 저장하면서 크기 검증
+        total_size = 0
+        chunk_size = 1024 * 1024  # 1MB 청크
         
-        # 파일 메타데이터 (간단한 버전, 실제로는 비디오 정보 추출 필요)
-        file_size = saved_path.stat().st_size
+        with open(saved_path, "wb") as buffer:
+            while True:
+                chunk = await file.read(chunk_size)
+                if not chunk:
+                    break
+                total_size += len(chunk)
+                
+                # 크기 초과 시 파일 삭제 후 에러 반환
+                if total_size > MAX_FILE_SIZE:
+                    buffer.close()
+                    saved_path.unlink(missing_ok=True)
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"파일 크기가 너무 큽니다. 최대 허용 크기: {MAX_FILE_SIZE / (1024*1024):.0f}MB"
+                    )
+                
+                buffer.write(chunk)
+        
+        print(f"[파일 업로드] 성공: {file.filename} ({total_size / (1024*1024):.2f}MB)")
         
         return {
             "videoId": video_id,
@@ -323,7 +533,7 @@ async def upload_video(
             "metadata": {
                 "fileName": file.filename,
                 "duration": 0,  # 비디오 분석 필요
-                "size": file_size,
+                "size": total_size,
                 "resolution": "",
                 "type": file.content_type,
                 "width": 0,
@@ -331,6 +541,8 @@ async def upload_video(
             }
         }
     
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"파일 업로드 실패: {str(e)}")
 
@@ -474,6 +686,117 @@ async def get_config():
     }
 
 
+# ============================================
+# 파일 정리 스케줄러
+# ============================================
+def cleanup_old_files():
+    """
+    오래된 파일을 정리하는 함수
+    
+    [정리 대상]
+    - uploads/ 디렉토리의 오래된 비디오 파일
+    - uploads/ 디렉토리의 오래된 결과 JSON 파일
+    
+    [정리 기준]
+    - CLEANUP_OLD_FILES_DURATION 시간(기본 24시간)보다 오래된 파일
+    """
+    try:
+        cutoff = datetime.now() - timedelta(hours=CLEANUP_OLD_FILES_DURATION)
+        cutoff_timestamp = cutoff.timestamp()
+        
+        deleted_count = 0
+        deleted_size = 0
+        
+        # uploads 디렉토리 정리
+        if UPLOAD_DIR.exists():
+            for file in UPLOAD_DIR.iterdir():
+                if file.is_file():
+                    try:
+                        file_mtime = file.stat().st_mtime
+                        if file_mtime < cutoff_timestamp:
+                            file_size = file.stat().st_size
+                            file.unlink()
+                            deleted_count += 1
+                            deleted_size += file_size
+                            print(f"[파일 정리] 삭제: {file.name} (생성: {datetime.fromtimestamp(file_mtime).strftime('%Y-%m-%d %H:%M:%S')})")
+                    except Exception as e:
+                        print(f"[파일 정리] 삭제 실패: {file.name} - {e}")
+        
+        if deleted_count > 0:
+            print(f"[파일 정리] 완료: {deleted_count}개 파일 삭제 ({deleted_size / (1024*1024):.2f}MB)")
+        else:
+            print(f"[파일 정리] 삭제할 파일 없음 (기준: {CLEANUP_OLD_FILES_DURATION}시간 이상)")
+            
+    except Exception as e:
+        print(f"[파일 정리] 오류 발생: {e}")
+
+
+def run_cleanup_scheduler():
+    """
+    파일 정리 스케줄러 실행 (백그라운드 스레드)
+    
+    [실행 주기]
+    - 1시간마다 cleanup_old_files() 실행
+    """
+    print(f"[파일 정리 스케줄러] 시작 (정리 기준: {CLEANUP_OLD_FILES_DURATION}시간, 실행 주기: 1시간)")
+    
+    while True:
+        try:
+            # 1시간 대기
+            time.sleep(3600)
+            
+            # 파일 정리 실행
+            print(f"[파일 정리 스케줄러] 정리 시작 ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})")
+            cleanup_old_files()
+            
+        except Exception as e:
+            print(f"[파일 정리 스케줄러] 오류: {e}")
+            # 오류 발생해도 계속 실행
+            time.sleep(60)
+
+
+# 서버 시작 시 스케줄러 실행
+cleanup_scheduler_thread: Optional[threading.Thread] = None
+
+def start_cleanup_scheduler():
+    """
+    파일 정리 스케줄러를 백그라운드 스레드로 시작
+    """
+    global cleanup_scheduler_thread
+    
+    if cleanup_scheduler_thread is None or not cleanup_scheduler_thread.is_alive():
+        cleanup_scheduler_thread = threading.Thread(
+            target=run_cleanup_scheduler,
+            daemon=True,  # 메인 프로세스 종료 시 함께 종료
+            name="FileCleanupScheduler"
+        )
+        cleanup_scheduler_thread.start()
+        print("[파일 정리 스케줄러] 백그라운드 스레드 시작됨")
+
+
+@app.on_event("startup")
+async def startup_event():
+    """
+    서버 시작 시 실행되는 이벤트 핸들러
+    """
+    print("=" * 60)
+    print("AI Inhaler Analysis API 서버 시작")
+    print("=" * 60)
+    print(f"[설정] 동시 분석 제한: {MAX_CONCURRENT_ANALYSES}개")
+    print(f"[설정] 프로세스 타임아웃: {PROCESS_TIMEOUT}초 ({PROCESS_TIMEOUT/60:.0f}분)")
+    print(f"[설정] 최대 파일 크기: {MAX_FILE_SIZE / (1024*1024):.0f}MB")
+    print(f"[설정] 허용 확장자: {', '.join(ALLOWED_EXTENSIONS)}")
+    print(f"[설정] 파일 정리 주기: {CLEANUP_OLD_FILES_DURATION}시간")
+    print("=" * 60)
+    
+    # 파일 정리 스케줄러 시작
+    start_cleanup_scheduler()
+    
+    # 서버 시작 시 즉시 한 번 정리 실행
+    print("[파일 정리] 서버 시작 시 초기 정리 실행")
+    cleanup_old_files()
+
+
 @app.get("/")
 async def root():
     """
@@ -482,7 +805,44 @@ async def root():
     return {"message": "AI Inhaler Analysis API", "version": "1.0.0"}
 
 
+@app.get("/api/stats")
+async def get_stats():
+    """
+    서버 상태 통계 반환
+    """
+    # 현재 분석 중인 작업 수
+    active_analyses = sum(1 for a in analysis_storage.values() if a["status"] in ["pending", "processing"])
+    completed_analyses = sum(1 for a in analysis_storage.values() if a["status"] == "completed")
+    error_analyses = sum(1 for a in analysis_storage.values() if a["status"] == "error")
+    
+    # 업로드 디렉토리 크기
+    upload_size = 0
+    upload_count = 0
+    if UPLOAD_DIR.exists():
+        for file in UPLOAD_DIR.iterdir():
+            if file.is_file():
+                upload_size += file.stat().st_size
+                upload_count += 1
+    
+    return {
+        "currentAnalyses": current_analysis_count,
+        "maxConcurrentAnalyses": MAX_CONCURRENT_ANALYSES,
+        "activeAnalyses": active_analyses,
+        "completedAnalyses": completed_analyses,
+        "errorAnalyses": error_analyses,
+        "uploadedFiles": upload_count,
+        "uploadedSizeMB": round(upload_size / (1024*1024), 2),
+        "processTimeoutSeconds": PROCESS_TIMEOUT,
+        "cleanupDurationHours": CLEANUP_OLD_FILES_DURATION
+    }
+
+
 if __name__ == "__main__":
+    # multiprocessing 시작 방법 설정
+    # 'spawn': 새로운 Python 인터프리터 시작 (안전, 권장)
+    # 'fork': 부모 프로세스 복제 (Linux 기본, 잠재적 문제 가능)
+    multiprocessing.set_start_method('spawn', force=True)
+    
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
