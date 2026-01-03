@@ -3,6 +3,8 @@ import os
 import cv2
 from PIL import Image
 import io
+import uuid
+import shutil
 
 class multimodalLLM:
     """ multimodalLLM에 관한 모음집 - OpenAI GPT 및 Google Gemini 지원"""
@@ -47,19 +49,58 @@ class multimodalLLM:
 
 
     # 파일명에 한글 포함되었을 때
-    def cv2_imread(self, image_path):  
-        image_path_temp = 'temporary_cv2_imread'
-        os.replace(image_path, image_path_temp)
-        image = cv2.imread(image_path_temp)  # cv2.imread()는 한글 파일명을 처리 못함
-        os.replace(image_path_temp, image_path)
-        return image
+    # [다중 사용자 지원] UUID 기반 고유 임시 파일명 사용
+    def cv2_imread(self, image_path):
+        """
+        한글 파일명 지원을 위한 cv2.imread 래퍼
+        
+        [다중 사용자 지원]
+        - UUID 기반 고유 임시 파일명으로 동시 접근 충돌 방지
+        - try-finally로 예외 발생 시에도 원본 파일 복구
+        """
+        # 고유한 임시 파일명 생성 (UUID 사용)
+        unique_id = uuid.uuid4().hex[:8]
+        image_path_temp = f'temporary_cv2_imread_{unique_id}'
+        
+        try:
+            os.replace(image_path, image_path_temp)
+            image = cv2.imread(image_path_temp)  # cv2.imread()는 한글 파일명을 처리 못함
+            os.replace(image_path_temp, image_path)
+            return image
+        except Exception as e:
+            # 예외 발생 시 원본 파일 복구 시도
+            if os.path.exists(image_path_temp) and not os.path.exists(image_path):
+                try:
+                    os.replace(image_path_temp, image_path)
+                except:
+                    pass
+            raise e
  
 
     # 파일명에 한글 포함되었을 때
+    # [다중 사용자 지원] UUID 기반 고유 임시 파일명 사용
     def cv2_imwrite(self, output_file, output_image):
-        output_file_temp = 'temporary_cv2_imwrite.png'
-        cv2.imwrite(output_file_temp, output_image)  # cv2.imwrite()는 한글 파일명을 처리 못함
-        os.replace(output_file_temp, output_file)
+        """
+        한글 파일명 지원을 위한 cv2.imwrite 래퍼
+        
+        [다중 사용자 지원]
+        - UUID 기반 고유 임시 파일명으로 동시 접근 충돌 방지
+        - try-finally로 예외 발생 시에도 임시 파일 정리
+        """
+        # 고유한 임시 파일명 생성 (UUID 사용)
+        unique_id = uuid.uuid4().hex[:8]
+        output_file_temp = f'temporary_cv2_imwrite_{unique_id}.png'
+        
+        try:
+            cv2.imwrite(output_file_temp, output_image)  # cv2.imwrite()는 한글 파일명을 처리 못함
+            os.replace(output_file_temp, output_file)
+        finally:
+            # 임시 파일 정리
+            if os.path.exists(output_file_temp):
+                try:
+                    os.remove(output_file_temp)
+                except:
+                    pass
 
 
     def query_answer_chatGPT(self, system_prompt, user_prompt, image_path=None, image_array=None, extract_video=10, max_output_tokens=None, temperature=0.0, seed=1):
