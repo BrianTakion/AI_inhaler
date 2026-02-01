@@ -23,6 +23,7 @@ from datetime import datetime, timedelta
 import shutil
 import multiprocessing
 from multiprocessing import Process, Queue
+import queue as queue_module  # for queue.Empty exception
 import traceback
 import threading
 import time
@@ -41,9 +42,11 @@ sys.path.append(project_root)
 
 # 고정된 LLM 모델 설정
 # "gpt-4.1", "gpt-5-nano", "gpt-5.1", "gpt-5.2"
-# "gemini-2.5-pro", "gemini-3-flash-preview", "gemini-3-pro-preview"    
+# "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro" (2026.06.17 종료 예정)
+# "gemini-3-flash-preview", "gemini-3-pro-preview" (최신)
 #FIXED_LLM_MODELS = ["gpt-4.1", "gpt-5.1", "gemini-2.5-pro", "gemini-3-flash-preview"]
-FIXED_LLM_MODELS = ["gpt-4.1", "gpt-4.1", "gemini-3-flash-preview", "gemini-3-flash-preview"]
+#FIXED_LLM_MODELS = ["gpt-4.1", "gpt-4.1", "gemini-3-flash-preview", "gemini-3-flash-preview"]
+FIXED_LLM_MODELS = ["gpt-4.1", "gpt-4.1"]
 
 # ============================================
 # 자원 제한 및 파일 관리 설정
@@ -258,12 +261,12 @@ def convert_backend_report_to_frontend(report: Dict[str, Any], final_state: Dict
 def _run_analysis_in_process(result_queue: Queue, device_type: str, video_path: str, llm_models: List[str], save_individual_report: bool):
     """
     별도 프로세스에서 분석을 실행하는 함수
-    
+
     [프로세스 격리 장점]
     - 각 프로세스는 독립적인 sys.path, sys.modules 보유
     - 동시에 서로 다른 device_type 분석해도 충돌 없음
     - 메모리 격리로 상태 오염 방지
-    
+
     Args:
         result_queue: 결과 전달용 큐
         device_type: 디바이스 타입
@@ -274,14 +277,14 @@ def _run_analysis_in_process(result_queue: Queue, device_type: str, video_path: 
     try:
         # 프로세스 내에서 app_main import (격리된 환경)
         from app_server import app_main
-        
+
         result = app_main.run_device_analysis(
             device_type=device_type,
             video_path=video_path,
             llm_models=llm_models,
             save_individual_report=save_individual_report
         )
-        
+
         # 결과를 큐에 전달
         result_queue.put({
             "success": True,
@@ -299,81 +302,108 @@ def _run_analysis_in_process(result_queue: Queue, device_type: str, video_path: 
 def _run_analysis_with_process_isolation(device_type: str, video_path: str, llm_models: List[str], save_individual_report: bool) -> Dict[str, Any]:
     """
     multiprocessing을 사용하여 프로세스 격리된 환경에서 분석 실행
-    
+
     이 함수는 동기 함수로, run_in_executor에서 호출됩니다.
     별도 프로세스를 생성하여 분석을 실행하고 결과를 반환합니다.
-    
+
     [프로세스 타임아웃]
     - PROCESS_TIMEOUT 초 후에 프로세스를 강제 종료
     - terminate() 후 10초 대기, 그래도 살아있으면 kill()
-    
+
+    [FIX] Queue Deadlock 방지:
+    - 기존: process.join() → result_queue.get() (Deadlock 위험!)
+    - 수정: result_queue.get(timeout) → process.join() (Python 공식 문서 권장)
+    - 원인: 자식 프로세스가 Queue.put()으로 큰 데이터를 넣으면 파이프 버퍼가 차서
+      put()이 블로킹됨. 이때 부모가 process.join()으로 기다리면 교착상태 발생.
+      긴 비디오일수록 결과 데이터가 커져 이 문제가 발생할 확률이 높음.
+
     Args:
         device_type: 디바이스 타입
         video_path: 비디오 파일 경로
         llm_models: LLM 모델 리스트
         save_individual_report: 개별 리포트 저장 여부
-        
+
     Returns:
         분석 결과 딕셔너리
     """
     # 결과 전달용 큐 생성
     result_queue = Queue()
-    
+
     # 별도 프로세스에서 분석 실행
     process = Process(
         target=_run_analysis_in_process,
         args=(result_queue, device_type, video_path, llm_models, save_individual_report)
     )
-    
+
     print(f"[프로세스 격리] 분석 프로세스 시작 (device_type: {device_type}, PID: {os.getpid()}, timeout: {PROCESS_TIMEOUT}s)")
     process.start()
-    
-    # 프로세스 완료 대기 (타임아웃 적용)
-    process.join(timeout=PROCESS_TIMEOUT)
-    
-    # 타임아웃 체크: 프로세스가 아직 살아있으면 강제 종료
-    if process.is_alive():
-        print(f"[프로세스 격리] 타임아웃 ({PROCESS_TIMEOUT}s) - 프로세스 강제 종료 시도 (device_type: {device_type})")
-        
-        # 먼저 terminate() 시도 (graceful shutdown)
-        process.terminate()
-        process.join(timeout=10)
-        
-        # 그래도 살아있으면 kill() (강제 종료)
+
+    # [FIX] Queue에서 결과를 먼저 읽고, 그 후에 process.join()을 호출
+    # Python 공식 문서: "a process that puts items on a queue will wait before
+    # terminating until all the buffered items are fed by the 'feeder' thread to
+    # the underlying pipe. You should join the process AFTER you have consumed all
+    # items from the queue."
+    queue_result = None
+    try:
+        queue_result = result_queue.get(timeout=PROCESS_TIMEOUT)
+    except queue_module.Empty:
+        # 타임아웃: 결과가 오지 않음
+        print(f"[프로세스 격리] 타임아웃 ({PROCESS_TIMEOUT}s) - Queue에서 결과를 받지 못함 (device_type: {device_type})")
+
+        # 프로세스가 아직 살아있으면 강제 종료
         if process.is_alive():
-            print(f"[프로세스 격리] terminate 실패, kill 시도 (device_type: {device_type})")
-            process.kill()
-            process.join(timeout=5)
-        
+            print(f"[프로세스 격리] 프로세스 강제 종료 시도 (device_type: {device_type})")
+            process.terminate()
+            process.join(timeout=10)
+
+            if process.is_alive():
+                print(f"[프로세스 격리] terminate 실패, kill 시도 (device_type: {device_type})")
+                process.kill()
+                process.join(timeout=5)
+
         return {
             "status": "error",
             "errors": [f"분석 시간 초과 ({PROCESS_TIMEOUT}초). 프로세스가 강제 종료되었습니다."]
         }
-    
-    # 결과 가져오기
-    if not result_queue.empty():
-        queue_result = result_queue.get()
-        
-        if queue_result.get("success"):
-            print(f"[프로세스 격리] 분석 완료 (device_type: {device_type})")
-            return queue_result.get("result")
-        else:
-            # 에러 발생
-            error_msg = queue_result.get("error", "알 수 없는 오류")
-            tb = queue_result.get("traceback", "")
-            print(f"[프로세스 격리] 분석 오류: {error_msg}")
-            if tb:
-                print(tb)
-            return {
-                "status": "error",
-                "errors": [error_msg]
-            }
-    else:
-        # 큐가 비어있음 - 프로세스가 비정상 종료
+    except Exception as e:
+        traceback.print_exc()
+
+        if process.is_alive():
+            process.terminate()
+            process.join(timeout=10)
+
+        return {
+            "status": "error",
+            "errors": [f"결과 수신 중 오류: {str(e)}"]
+        }
+
+    # Queue에서 결과를 읽었으므로 이제 안전하게 process.join() 호출
+    process.join(timeout=30)
+    if process.is_alive():
+        process.terminate()
+        process.join(timeout=5)
+
+    # 결과 처리
+    if queue_result is None:
         print(f"[프로세스 격리] 프로세스 비정상 종료 (exit_code: {process.exitcode})")
         return {
             "status": "error",
             "errors": [f"분석 프로세스가 비정상 종료됨 (exit_code: {process.exitcode})"]
+        }
+
+    if queue_result.get("success"):
+        print(f"[프로세스 격리] 분석 완료 (device_type: {device_type})")
+        return queue_result.get("result")
+    else:
+        # 에러 발생
+        error_msg = queue_result.get("error", "알 수 없는 오류")
+        tb = queue_result.get("traceback", "")
+        print(f"[프로세스 격리] 분석 오류: {error_msg}")
+        if tb:
+            print(tb)
+        return {
+            "status": "error",
+            "errors": [error_msg]
         }
 
 
