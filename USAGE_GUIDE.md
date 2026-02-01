@@ -14,6 +14,7 @@
 8. [플랫폼별 설정](#플랫폼별-설정)
 9. [문제 해결](#문제-해결)
 10. [참고 정보](#참고-정보)
+11. [디바이스별 행동 단계 상세](#디바이스별-행동-단계-상세)
 
 ---
 
@@ -100,8 +101,8 @@ GOOGLE_API_KEY=...
 
 | 키 | 대상 모델 | 필수 여부 |
 |---|---|---|
-| `OPENAI_API_KEY` | `gpt-4.1`, `gpt-5-nano`, `gpt-5.1` 등 | OpenAI 모델 사용 시 |
-| `GOOGLE_API_KEY` | `gemini-2.5-pro`, `gemini-3-flash-preview` 등 | Google 모델 사용 시 |
+| `OPENAI_API_KEY` | `gpt-4.1`, `gpt-5-nano`, `gpt-5.1`, `gpt-5.2` 등 | OpenAI 모델 사용 시 |
+| `GOOGLE_API_KEY` | `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-3-flash-preview` 등 | Google 모델 사용 시 |
 
 설정 확인:
 
@@ -201,6 +202,8 @@ docker exec <컨테이너명> tail -f /workspaces/AI_inhaler/logs/frontend.log
 - 프론트엔드: `http://<호스트_IP>:8080`
 - 백엔드 API: `http://<호스트_IP>:8000`
 
+> 프론트엔드는 브라우저의 `window.location.hostname`을 기반으로 API 서버 주소를 자동 구성합니다. 원격 접속 시 별도의 API 주소 설정 없이 자동으로 동작합니다.
+
 **VS Code Dev Container 환경:**
 
 - 포트 포워딩이 자동 설정되므로 `http://localhost:8080` 사용
@@ -250,9 +253,16 @@ docker exec <컨테이너명> tail -f /workspaces/AI_inhaler/logs/frontend.log
 
 분석할 비디오 파일을 업로드합니다 (최대 500MB, MP4/MOV/AVI/MKV).
 
+파일 선택 시 비디오 첫 프레임의 스냅샷 미리보기가 표시되어 올바른 파일을 선택했는지 확인할 수 있습니다.
+
 ### 3. 분석 실행 및 결과 확인
 
 분석을 시작하면 진행 상황을 모니터링할 수 있으며, 완료 후 결과를 확인하고 저장합니다.
+
+- **프로그레스 바**: 서버 응답이 없어도 5초마다 1%씩 자동 증가 (최대 95%)하여 시각적 피드백 제공
+- **경과 시간 로그**: 10초마다 "Progress: Xm Ys" 형태의 경과 시간 로그가 표시됨
+- **프론트엔드 타임아웃**: 분석 시작 후 40분이 경과하면 타임아웃 오류를 표시
+- **연속 에러 감지**: 서버 상태 확인 요청이 연속 30회 실패하면 서버 연결 끊김 오류를 표시
 
 **다중 사용자 지원:**
 
@@ -260,6 +270,24 @@ docker exec <컨테이너명> tail -f /workspaces/AI_inhaler/logs/frontend.log
 - 초과 시 자동 대기, 완료 후 순차 시작
 - 각 분석은 독립 프로세스에서 실행되어 서로 간섭 없음
 - 서버 상태 모니터링: `http://localhost:8000/api/stats`
+
+### 4. 결과 저장
+
+"Save Results" 버튼으로 분석 결과를 CSV 파일로 다운로드할 수 있습니다.
+
+**CSV 파일 구성:**
+
+| 섹션 | 내용 |
+|---|---|
+| 비디오 정보 | 파일명, 길이, 해상도, 프레임 수 |
+| 분석 요약 | 전체 단계 수, 통과/실패 수, 점수 |
+| 모델 정보 | 사용된 LLM 모델 목록, 분석 소요 시간 |
+| 최종 요약 | AI가 생성한 종합 평가 텍스트 |
+| 개별 에이전트 HTML 경로 | 각 에이전트별 시각화 리포트 파일 경로 |
+| 상세 단계별 결과 | 각 단계의 통과/실패, 신뢰도 (Xs:Y% 형식) |
+
+- 파일명 형식: `inhaler_analysis_{deviceType}_{ISO-timestamp}.csv`
+- 한글 지원을 위해 BOM (Byte Order Mark)이 포함되어 Excel에서 올바르게 표시됨
 
 ---
 
@@ -437,7 +465,13 @@ result = app_main.run_device_analysis(
 사용 가능한 LLM 모델:
 
 - **OpenAI**: `gpt-4.1`, `gpt-5-nano`, `gpt-5.1`, `gpt-5.2`
-- **Google**: `gemini-2.5-pro`, `gemini-3-flash-preview`, `gemini-3-pro-preview`
+- **Google**: `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.5-pro`, `gemini-3-flash-preview`, `gemini-3-pro-preview`
+
+> **모델별 참고 사항:**
+> - `gpt-5.2`: 비디오 직접 입력 미지원 (`supports_video: False`). 컨텍스트 윈도우 400K, 최대 출력 128K.
+> - `gpt-5-nano`: 기본 폴백 모델. 잘못된 모델명 입력 시 자동으로 `gpt-5-nano`가 사용됩니다.
+> - `gemini-2.5-flash`, `gemini-2.5-pro`: 2026년 6월 17일 서비스 종료 예정. `gemini-3-flash-preview` 또는 `gemini-3-pro-preview`로 전환 권장.
+> - GPT-5 계열 모델은 `max_completion_tokens` 파라미터를 사용하며, `temperature`/`seed` 파라미터는 지원하지 않습니다.
 
 #### 반환값
 
@@ -495,7 +529,7 @@ FIXED_LLM_MODELS = ["gpt-4.1", "gpt-4.1"]
 
 ```python
 MAX_CONCURRENT_ANALYSES = 5              # 최대 동시 분석 수
-PROCESS_TIMEOUT = 1800                   # 프로세스 타임아웃 (초, 기본 30분)
+PROCESS_TIMEOUT = 1800                   # 프로세스 타임아웃 (초, 기본 30분) + async 60초 추가 안전장치
 MAX_FILE_SIZE = 500 * 1024 * 1024        # 최대 업로드 파일 크기 (500MB)
 ALLOWED_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv'}
 CLEANUP_OLD_FILES_DURATION = 24          # 업로드 파일 자동 정리 기준 (시간)
@@ -538,7 +572,26 @@ ANALYSIS_STORAGE_TTL_HOURS = 2           # 완료/에러 분석 결과 메모리
 **전용 스레드 풀:**
 
 - 분석 작업은 전용 `ThreadPoolExecutor`에서 실행 (기본 이벤트 루프 스레드 풀 오염 방지)
-- `max_workers`는 `MAX_CONCURRENT_ANALYSES`와 동일 (기본 5)
+- `max_workers`는 `MAX_CONCURRENT_ANALYSES + 2` (기본 7). 지연 종료되는 스레드가 새 작업을 차단하지 않도록 여유분 확보
+
+**프로세스 격리 방식:**
+
+- `multiprocessing.set_start_method('spawn')` 사용: 새 Python 인터프리터에서 분석 실행
+- `fork` 대신 `spawn`을 사용하여 부모 프로세스의 메모리 상태 오염 방지
+- 큐 데드락 방지: `result_queue.get()` → `process.join()` 순서로 실행 (Python 공식 문서 권장 패턴)
+
+**다중 레이어 타임아웃:**
+
+- **프로세스 레벨**: `PROCESS_TIMEOUT` (30분) 초과 시 `terminate()` → 10초 대기 → `kill()`
+- **비동기 레벨**: `asyncio.wait_for(timeout=PROCESS_TIMEOUT + 60)` (31분). 실행기 스레드 자체가 멈춘 경우에도 세마포어와 분석 상태 정리 보장
+- **LLM API 레벨**: 요청당 120초, 연결 수립 10초, 연속 3회 에러 시 중단
+
+**Graceful Shutdown (정상 종료):**
+
+- PID 파일 관리: 서버 시작 시 `api_server.pid` 파일에 PID를 기록하고, 종료 시 자동 삭제
+- 이전 인스턴스 정리: 서버 시작 시 기존 PID 파일이 있으면 이전 프로세스에 `SIGTERM` 전송 → 3초 대기 → `SIGKILL`
+- 시그널 핸들러: `SIGTERM`, `SIGINT`, `SIGHUP` 모두 graceful shutdown 트리거
+- 종료 절차: 자식 프로세스 `terminate()` → `join(5초)` → `kill()` → 스레드 풀 종료 → PID 파일 삭제
 
 **자동 정리:**
 
@@ -768,29 +821,94 @@ find uploads/ -type f -mtime +1 -delete
 
 ```
 /workspaces/AI_inhaler/
-├── start_AI_inhaler.sh          # 호스트 통합 실행 스크립트
-├── start_inside_container.sh    # 컨테이너 내부 실행 스크립트
-├── requirements.txt             # Python 패키지 의존성
-├── USAGE_GUIDE.md               # 이 문서
-├── app_server/                  # 백엔드 서버
-│   ├── api_server.py            # FastAPI 서버
-│   ├── app_main.py              # 통합 분석 애플리케이션
-│   ├── test_api_server.py       # API 테스트 스크립트
-│   └── .env                     # API 키 설정 파일
-├── webUX/                       # 프론트엔드 웹 UI
-├── app_pMDI_type1/              # pMDI 타입1 분석 모듈
-├── app_pMDI_type2/              # pMDI 타입2 분석 모듈
-├── app_DPI_type1/               # DPI 타입1 분석 모듈
-├── app_DPI_type2/               # DPI 타입2 분석 모듈
-├── app_DPI_type3/               # DPI 타입3 분석 모듈
-├── app_SMI_type1/               # SMI 타입1 분석 모듈
-├── uploads/                     # 업로드된 비디오 파일
-├── logs/                        # 서버 로그 파일
+├── start_AI_inhaler.sh              # 호스트 통합 실행 스크립트
+├── start_inside_container.sh        # 컨테이너 내부 실행 스크립트
+├── requirements.txt                 # Python 패키지 의존성
+├── USAGE_GUIDE.md                   # 이 문서
+├── app_server/                      # 백엔드 서버
+│   ├── api_server.py                # FastAPI 서버 (Graceful Shutdown, PID 관리 포함)
+│   ├── app_main.py                  # 통합 분석 애플리케이션 (동적 모듈 로딩)
+│   ├── class_MultimodalLLM_QA_251107.py  # 멀티모달 LLM 추상화 계층 (OpenAI/Google)
+│   ├── class_Media_Edit_251107.py   # 비디오/이미지 처리 유틸리티 (OpenCV)
+│   ├── test_api_server.py           # 통합 API 테스트 스크립트
+│   ├── __init__.py                  # 패키지 마커
+│   └── .env                         # API 키 설정 파일
+├── webUX/                           # 프론트엔드 웹 UI
+│   ├── index.html                   # 단일 페이지 애플리케이션 (Tailwind CSS)
+│   ├── css/style.css                # 커스텀 스타일
+│   └── js/
+│       ├── api.js                   # API 클라이언트 (동적 URL 구성)
+│       ├── app.js                   # 메인 앱 로직 (4단계 워크플로우)
+│       └── utils/csvExporter.js     # CSV 내보내기 (한글 BOM 지원)
+├── app_pMDI_type1/                  # pMDI 타입1 분석 모듈
+├── app_pMDI_type2/                  # pMDI 타입2 분석 모듈
+├── app_DPI_type1/                   # DPI 타입1 분석 모듈
+├── app_DPI_type2/                   # DPI 타입2 분석 모듈
+├── app_DPI_type3/                   # DPI 타입3 분석 모듈
+├── app_SMI_type1/                   # SMI 타입1 분석 모듈
+├── uploads/                         # 업로드된 비디오 파일 (24시간 후 자동 정리)
+├── logs/                            # 서버 로그 파일
 │   ├── backend.log
 │   └── frontend.log
 └── .devcontainer/
-    └── devcontainer.json        # 컨테이너 설정 파일
+    └── devcontainer.json            # 컨테이너 설정 파일 (Python 3.11, Node 20)
 ```
+
+### 디바이스별 분석 모듈 구조
+
+각 `app_{device_type}/` 디렉토리는 동일한 구조를 가집니다:
+
+```
+app_{device_type}/
+├── agents/
+│   ├── __init__.py                  # 에이전트 클래스 내보내기
+│   ├── state.py                     # VideoAnalysisState TypedDict + 초기 상태 생성
+│   ├── video_processor_agent.py     # VideoProcessorAgent: 비디오 메타데이터 추출
+│   ├── video_analyzer_agent.py      # VideoAnalyzerAgent: 레퍼런스 시점 탐색 + 행동 단계 분석
+│   └── reporter_agent.py           # ReporterAgent: 결과 집계, 시각화, 최종 요약
+├── class_PromptBank_{device_type}.py  # 디바이스별 행동 단계 및 LLM 프롬프트
+├── graph_workflow.py                # LangGraph StateGraph 워크플로우 정의
+└── visualization_*.html             # 분석 실행별 Plotly HTML 시각화 결과
+```
+
+### 시스템 아키텍처
+
+```
+[브라우저] ──HTTP──> [프론트엔드 :8080] ──API──> [FastAPI :8000]
+                     (webUX/)                    (api_server.py)
+                                                      │
+                                            ┌─────────┴─────────┐
+                                            │  app_main.py       │
+                                            │  (동적 모듈 로딩)   │
+                                            └─────────┬─────────┘
+                                                      │ multiprocessing.Process (spawn)
+                                            ┌─────────┴─────────┐
+                                            │  LangGraph 워크플로우  │
+                                            │  (graph_workflow.py)  │
+                                            └─────────┬─────────┘
+                                                      │
+                              ┌────────────┬──────────┴──────────┐
+                              │            │                     │
+                    VideoProcessor   VideoAnalyzer(0)     VideoAnalyzer(1)
+                    (메타데이터)     (LLM 모델 0)         (LLM 모델 1)
+                              │            │                     │
+                              │            └──────────┬──────────┘
+                              │                       │
+                              └───────────────┬───────┘
+                                              │
+                                        ReporterAgent
+                                    (집계/시각화/요약)
+```
+
+**분석 파이프라인 상세:**
+
+1. **VideoProcessorAgent**: OpenCV로 비디오 메타데이터(길이, 프레임 수, 해상도) 추출
+2. **VideoAnalyzerAgent** (모델별 병렬 실행):
+   - 슬라이딩 윈도우 방식으로 비디오를 탐색하여 3개 레퍼런스 시점 탐지 (`inhalerIN`, `faceONinhaler`, `inhalerOUT`)
+   - 각 윈도우에서 MxN 그리드 이미지를 추출하여 LLM에 전송
+   - LLM이 레퍼런스 탐지 YES/NO + 각 행동 단계별 YES/NO + 신뢰도 반환
+   - 최대 200 반복 탐색, 연속 API 에러 3회 시 중단
+3. **ReporterAgent**: 개별 에이전트 결과에 규칙 적용 → 다중 에이전트 결과 집계 (`majority`/`all`/`any`) → Plotly HTML 시각화 생성 → GPT-4.1로 최종 종합 요약 텍스트 생성
 
 ### OpenCV (opencv-python-headless)
 
@@ -800,6 +918,37 @@ find uploads/ -type f -mtime +1 -delete
 - GUI 의존성(`libGL.so.1` 등) 없이 동작
 - 모든 플랫폼(macOS, Linux, WSL)에서 동일하게 작동
 - `cv2.imshow()` 등 GUI 기능은 사용 불가 (현재 코드에서 미사용)
+
+---
+
+## 디바이스별 행동 단계 상세
+
+### 공통 레퍼런스 시점
+
+모든 디바이스 타입에서 비디오에서 탐지하는 3개의 기준 시점:
+
+| 레퍼런스 | 설명 |
+|---|---|
+| `inhalerIN` | 흡입기가 화면에 처음 나타나는 시점 |
+| `faceONinhaler` | 사용자가 흡입기를 입에 대는 시점 |
+| `inhalerOUT` | 흡입기가 화면에서 사라지는 시점 |
+
+### 디바이스별 고유 단계
+
+| 디바이스 | 설명 | 고유 단계 |
+|---|---|---|
+| `pMDI_type1` | Suspension pMDI (Evohaler, Ventolin, Seretide 등) | `shake_inhaler` (사용 전 흔들기) |
+| `pMDI_type2` | Solution pMDI (Alvesco, Foster) | `shake_inhaler` 불필요 (용액형) |
+| `DPI_type1` | Multi-dose 뚜껑형 DPI (Ellipta, Nexthaler) | `load_dose` (커버 제거 대신 용량 로딩) |
+| `DPI_type2` | Multi-dose 회전/버튼형 DPI (Genuair, Turbuhaler) | `remove_cover` + `load_dose` |
+| `DPI_type3` | Single-dose 캡슐형 DPI (Breezhaler, HandiHaler) | `remove_cover` + `load_dose` |
+| `SMI_type1` | Soft mist inhaler (Respimat) | `load_dose` → `remove_cover` (순서 중요) |
+
+### 공통 행동 단계
+
+대부분의 디바이스에서 공통으로 평가하는 행동 단계:
+
+`sit_stand` → `inspect_mouthpiece` → `hold_inhaler` → `exhale_before` → `seal_lips` → `inhale_deeply` → `remove_inhaler` → `hold_breath` → `exhale_after`
 
 ---
 
