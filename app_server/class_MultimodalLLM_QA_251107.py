@@ -20,9 +20,12 @@ class multimodalLLM:
         
         # Google Gemini 모델 (context_window = 입력 제한, max_output_tokens = 출력 제한)
         # 참고: https://ai.google.dev/gemini-api/docs/models/gemini
-        "gemini-2.5-pro": {"context_window": 1_000_000, "max_output_tokens": 8_192, "supports_vision": True, "supports_video": True, "provider": "google"},   # 최대 1M context
-        "gemini-3-flash-preview": {"context_window": 1_000_000, "max_output_tokens": 8_192, "supports_vision": True, "supports_video": True, "provider": "google"},  # 실제 API 모델명
-        "gemini-3-pro-preview": {"context_window": 1_000_000, "max_output_tokens": 8_192, "supports_vision": True, "supports_video": True, "provider": "google"},  # 공식 수치 부재 → Pro와 동일 가정
+        # [주의] gemini-2.5-flash, gemini-2.5-pro는 2026.06.17 종료 예정 → gemini-3 시리즈로 마이그레이션 권장
+        "gemini-2.5-flash": {"context_window": 1_000_000, "max_output_tokens": 8_192, "supports_vision": True, "supports_video": True, "provider": "google"},   # Stable, 2026.06.17 종료 예정
+        "gemini-2.5-flash-lite": {"context_window": 1_000_000, "max_output_tokens": 8_192, "supports_vision": True, "supports_video": True, "provider": "google"},  # Stable, gemini-2.0-flash-lite 대체
+        "gemini-2.5-pro": {"context_window": 1_000_000, "max_output_tokens": 8_192, "supports_vision": True, "supports_video": True, "provider": "google"},   # Stable, 2026.06.17 종료 예정
+        "gemini-3-flash-preview": {"context_window": 1_000_000, "max_output_tokens": 8_192, "supports_vision": True, "supports_video": True, "provider": "google"},  # Preview, gemini-2.5-flash 후속
+        "gemini-3-pro-preview": {"context_window": 1_000_000, "max_output_tokens": 8_192, "supports_vision": True, "supports_video": True, "provider": "google"},  # Preview, gemini-2.5-pro 후속
     }
     
     def __init__(self, llm_name: str = "gpt-5-nano", api_key: str = None):
@@ -507,15 +510,15 @@ if __name__ == "__main__":
         print("app_server 디렉토리의 .env 파일에 'GOOGLE_API_KEY=your-api-key-here' 형식으로 추가하세요.")
     
     # 다양한 모델 테스트
+    # [참고] gemini-1.5-*, gemini-2.0-* 모델은 종료됨 (2025년)
+    # gemini-2.5-flash/pro는 2026.06.17 종료 예정 → gemini-3 시리즈 권장
     test_models = [
-        ("gpt-4o-mini", openai_api_key),
-        ("gpt-4o", openai_api_key),
-        ("gemini-1.5-flash", google_api_key),
-        ("gemini-1.5-pro", google_api_key),
+        ("gpt-4.1", openai_api_key),
+        ("gpt-5-nano", openai_api_key),
         ("gemini-2.5-flash", google_api_key),
         ("gemini-2.5-pro", google_api_key),
-        ("gemini-3.0-flash", google_api_key),
-        ("gemini-3.0-pro", google_api_key)
+        ("gemini-3-flash-preview", google_api_key),
+        ("gemini-3-pro-preview", google_api_key),
     ]
     
     for llm_name, api_key in test_models:
@@ -551,7 +554,7 @@ if __name__ == "__main__":
     # print(answer)
     
     # Gemini 예시
-    # llm_gemini = multimodalLLM("gemini-1.5-pro", google_api_key)
+    # llm_gemini = multimodalLLM("gemini-3-flash-preview", google_api_key)
     # system_prompt = "You are an excellent video analyst."
     # user_prompt = "비디오에서 어떤 행동을 하는지 단계적으로 설명하시오."
     # image_path = "your_video_file.mp4"  # 실제 파일 경로로 변경

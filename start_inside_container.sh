@@ -1,5 +1,22 @@
 #!/bin/bash
 # 백엔드와 프론트엔드를 동시에 실행하는 스크립트
+#
+# 이 스크립트는 컨테이너 내부에서 실행되며, start_AI_inhaler.sh가 호출합니다.
+# 직접 실행할 수도 있고, start_AI_inhaler.sh를 통해 간접 실행할 수도 있습니다.
+#
+# [컨테이너 내부에서 직접 실행]
+#   ./start_inside_container.sh          # 포그라운드 실행, Ctrl+C로 종료
+#
+# [호스트에서 start_AI_inhaler.sh를 통해 실행] (권장)
+#   ./start_AI_inhaler.sh                # 포그라운드 실행 (Ctrl+C로 종료)
+#   ./start_AI_inhaler.sh --detach       # 백그라운드 실행 (SSH 종료해도 서버 유지)
+#   ./start_AI_inhaler.sh -d             # --detach 단축 옵션
+#   ./start_AI_inhaler.sh --stop         # 서버 종료 (포그라운드/백그라운드 모두)
+#   ./start_AI_inhaler.sh --status       # 서버 실행 상태 확인
+#
+# --stop 옵션은 컨테이너 내부의 api_server.py, http.server(8080),
+# start_inside_container.sh 프로세스를 모두 종료합니다.
+# 포그라운드로 실행 중인 세션도 함께 종료됩니다.
 
 set -e
 

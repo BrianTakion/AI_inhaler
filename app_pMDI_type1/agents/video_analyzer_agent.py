@@ -363,42 +363,42 @@ Q6_Confidence: [0.0 to 1.0, indicating your confidence level in the answer]
         """
         M, N = 1, int(segment_time / sampling_time)
         gridSize = (int(1280/2)*N, int(720/2)*M)
-        
+
         q_answers_accumulated = {}
         final_start_time = start_time
         
         while start_time <= play_time - segment_time:
             print(f'[{self.model_id}] 검색 중... start_time={start_time:.1f}초')
             end_time = start_time + segment_time
-            
+
             # 프레임 추출
             output_image, _, _ = self.video_processor.extract_frames(
                 video_path, start_time, end_time, M, N, gridSize, (0, 0)
             )
-            
+
             # LLM 쿼리
             response = self.mllm.query_answer_chatGPT(
                 system_prompt, user_prompt, image_array=output_image
             )
-            
+
             # 응답 파싱
             overall_answer = self._parse_overall_answer(response)
             current_q_answers, current_q_confidence = self._parse_q_answers(response)
-            
+
             # 누적 저장
             for q_key, answer in current_q_answers.items():
                 if q_key not in q_answers_accumulated:
                     q_answers_accumulated[q_key] = []
                 confidence = current_q_confidence.get(q_key, None)
                 q_answers_accumulated[q_key].append((round(start_time, 1), answer, confidence))
-            
+
             # 종료 조건
             if overall_answer == "YES":
                 final_start_time = round(start_time, 1)
                 break
-            
+
             start_time += offset_time
-        
+
         # 루프 종료 후 처리
         if start_time > play_time - segment_time:
             print("  영상 거의 끝까지 탐색했습니다.")

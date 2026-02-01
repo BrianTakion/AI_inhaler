@@ -27,6 +27,7 @@ import queue as queue_module  # for queue.Empty exception
 import traceback
 import threading
 import time
+import signal
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -39,6 +40,91 @@ sys.path.append(project_root)
 
 # 주의: app_main은 별도 프로세스에서 import됨 (프로세스 격리)
 # from app_server import app_main  # 직접 import 제거
+
+# ============================================
+# PID 파일 관리 및 프로세스 정리
+# ============================================
+PID_FILE = Path(project_root) / "api_server.pid"
+
+
+def write_pid_file():
+    """현재 프로세스의 PID를 파일에 기록"""
+    PID_FILE.write_text(str(os.getpid()))
+    print(f"[PID] 파일 생성: {PID_FILE} (PID: {os.getpid()})")
+
+
+def remove_pid_file():
+    """PID 파일 삭제"""
+    try:
+        if PID_FILE.exists() and int(PID_FILE.read_text().strip()) == os.getpid():
+            PID_FILE.unlink(missing_ok=True)
+            print(f"[PID] 파일 삭제: {PID_FILE}")
+    except (ValueError, OSError):
+        PID_FILE.unlink(missing_ok=True)
+
+
+def kill_previous_instance():
+    """이전에 실행 중인 api_server 인스턴스가 있으면 종료"""
+    if not PID_FILE.exists():
+        return
+
+    try:
+        old_pid = int(PID_FILE.read_text().strip())
+        if old_pid == os.getpid():
+            return
+
+        # 프로세스가 실제로 존재하는지 확인
+        os.kill(old_pid, 0)
+
+        # 존재하면 SIGTERM 전송
+        print(f"[정리] 이전 인스턴스 종료 시도 (PID: {old_pid})")
+        os.kill(old_pid, signal.SIGTERM)
+        time.sleep(3)
+
+        # 아직 살아있으면 SIGKILL
+        try:
+            os.kill(old_pid, 0)
+            print(f"[정리] SIGTERM 무응답, 강제 종료 (PID: {old_pid})")
+            os.kill(old_pid, signal.SIGKILL)
+            time.sleep(1)
+        except ProcessLookupError:
+            pass  # 정상 종료됨
+
+        print(f"[정리] 이전 인스턴스 정리 완료 (PID: {old_pid})")
+
+    except (ProcessLookupError, ValueError):
+        pass  # 이미 종료되었거나 잘못된 PID
+    except OSError as e:
+        print(f"[정리] 이전 인스턴스 정리 중 오류: {e}")
+    finally:
+        PID_FILE.unlink(missing_ok=True)
+
+
+def cleanup_child_processes():
+    """활성 자식 프로세스(multiprocessing)를 모두 종료"""
+    children = multiprocessing.active_children()
+    if not children:
+        return
+    print(f"[정리] 자식 프로세스 {len(children)}개 종료 중...")
+    for child in children:
+        child.terminate()
+    # 일괄 join
+    for child in children:
+        child.join(timeout=5)
+    # 아직 살아있는 프로세스 강제 종료
+    for child in multiprocessing.active_children():
+        print(f"[정리] 자식 프로세스 강제 종료 (PID: {child.pid})")
+        child.kill()
+
+
+def graceful_shutdown(signum, frame):
+    """시그널 수신 시 자식 프로세스 정리 후 종료"""
+    sig_name = signal.Signals(signum).name
+    print(f"\n[종료] 시그널 {sig_name}({signum}) 수신, 정리 중...")
+    cleanup_child_processes()
+    remove_pid_file()
+    sys.exit(0)
+
 
 # 고정된 LLM 모델 설정
 # "gpt-4.1", "gpt-5-nano", "gpt-5.1", "gpt-5.2"
@@ -827,6 +913,19 @@ async def startup_event():
     cleanup_old_files()
 
 
+@app.on_event("shutdown")
+async def shutdown_event():
+    """
+    서버 종료 시 실행되는 이벤트 핸들러
+    - 활성 자식 프로세스(분석 프로세스) 정리
+    - PID 파일 삭제
+    """
+    print("[종료] 서버 종료 이벤트 수신, 정리 중...")
+    cleanup_child_processes()
+    remove_pid_file()
+    print("[종료] 정리 완료")
+
+
 @app.get("/")
 async def root():
     """
@@ -872,7 +971,20 @@ if __name__ == "__main__":
     # 'spawn': 새로운 Python 인터프리터 시작 (안전, 권장)
     # 'fork': 부모 프로세스 복제 (Linux 기본, 잠재적 문제 가능)
     multiprocessing.set_start_method('spawn', force=True)
-    
+
+    # 이전 인스턴스 정리 및 PID 파일 생성
+    kill_previous_instance()
+    write_pid_file()
+
+    # 시그널 핸들러 등록 (SIGTERM, SIGINT, SIGHUP)
+    signal.signal(signal.SIGTERM, graceful_shutdown)
+    signal.signal(signal.SIGINT, graceful_shutdown)
+    signal.signal(signal.SIGHUP, graceful_shutdown)
+
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    try:
+        uvicorn.run(app, host="0.0.0.0", port=8000)
+    finally:
+        cleanup_child_processes()
+        remove_pid_file()
 

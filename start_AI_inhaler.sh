@@ -3,6 +3,13 @@
 # 컨테이너가 있으면 포트 매핑 확인 후 서버 시작
 # 컨테이너가 없으면 devcontainer.json 설정으로 새 컨테이너 생성 후 서버 시작
 #
+# 사용법:
+#   ./start_AI_inhaler.sh           # 포그라운드 실행 (Ctrl+C로 종료)
+#   ./start_AI_inhaler.sh --detach  # 백그라운드 실행 (SSH 종료해도 유지)
+#   ./start_AI_inhaler.sh -d        # --detach 단축 옵션
+#   ./start_AI_inhaler.sh --stop    # 백그라운드 서버 종료
+#   ./start_AI_inhaler.sh --status  # 서버 상태 확인
+#
 # 지원 플랫폼: macOS, Linux, WSL (Windows Subsystem for Linux)
 
 set -e
@@ -376,6 +383,78 @@ get_host_ip() {
     echo "$host_ip"
 }
 
+# --stop / --status: 컨테이너를 찾아서 바로 처리 후 종료
+if [ "$1" = "--stop" ] || [ "$1" = "--status" ]; then
+    CONTAINER_NAME=$(find_container)
+    if [ -z "$CONTAINER_NAME" ]; then
+        echo "❌ 실행 중인 AI Inhaler 컨테이너를 찾을 수 없습니다."
+        exit 1
+    fi
+
+    if [ "$1" = "--status" ]; then
+        echo "=========================================="
+        echo "AI Inhaler 서버 상태"
+        echo "=========================================="
+        echo "컨테이너: $CONTAINER_NAME"
+        echo ""
+
+        # 컨테이너 실행 여부
+        if ! docker ps --format "{{.Names}}" | grep -q "^${CONTAINER_NAME}$"; then
+            echo "  컨테이너 상태: 중지됨"
+            exit 0
+        fi
+        echo "  컨테이너 상태: 실행 중"
+        echo ""
+
+        # 백엔드 확인
+        BACKEND_OK=$(docker exec "$CONTAINER_NAME" curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/ 2>/dev/null || echo "000")
+        if [ "$BACKEND_OK" != "000" ]; then
+            echo "  백엔드 API (8000): 실행 중"
+        else
+            echo "  백엔드 API (8000): 중지됨"
+        fi
+
+        # 프론트엔드 확인
+        FRONTEND_OK=$(docker exec "$CONTAINER_NAME" curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/ 2>/dev/null || echo "000")
+        if [ "$FRONTEND_OK" != "000" ]; then
+            echo "  프론트엔드 (8080): 실행 중"
+        else
+            echo "  프론트엔드 (8080): 중지됨"
+        fi
+        echo "=========================================="
+        exit 0
+    fi
+
+    # --stop 처리
+    echo "=========================================="
+    echo "AI Inhaler 서버 종료"
+    echo "=========================================="
+    echo "컨테이너: $CONTAINER_NAME"
+    echo ""
+
+    docker exec "$CONTAINER_NAME" bash -c '
+        pkill -f "api_server.py" 2>/dev/null
+        pkill -f "uvicorn.*api_server" 2>/dev/null
+        pkill -f "python.*http.server.*8080" 2>/dev/null
+        pkill -f "start_inside_container.sh" 2>/dev/null
+    ' 2>/dev/null || true
+
+    sleep 2
+
+    # 종료 확인
+    BACKEND_OK=$(docker exec "$CONTAINER_NAME" curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/ 2>/dev/null || echo "000")
+    FRONTEND_OK=$(docker exec "$CONTAINER_NAME" curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/ 2>/dev/null || echo "000")
+
+    if [ "$BACKEND_OK" = "000" ] && [ "$FRONTEND_OK" = "000" ]; then
+        echo "  ✓ 모든 서버가 종료되었습니다."
+    else
+        [ "$BACKEND_OK" != "000" ] && echo "  ⚠️  백엔드 API가 아직 실행 중입니다."
+        [ "$FRONTEND_OK" != "000" ] && echo "  ⚠️  프론트엔드가 아직 실행 중입니다."
+    fi
+    echo "=========================================="
+    exit 0
+fi
+
 # 메인 로직
 echo "=========================================="
 echo "AI Inhaler 통합 시작 스크립트"
@@ -469,13 +548,53 @@ fi
 echo "✓ start_inside_container.sh 파일 확인됨"
 echo ""
 
-# 컨테이너 내부에서 start_inside_container.sh 실행
-# TTY가 없는 경우 -it 옵션 제거
-if [ -t 0 ]; then
-    # 인터랙티브 모드 (TTY 있음)
-    docker exec -it "$CONTAINER_NAME" bash -c "cd $CONTAINER_WORKSPACE && ./start_inside_container.sh"
+# 실행 모드 선택: --detach 옵션으로 백그라운드 실행 가능
+if [ "$1" = "--detach" ] || [ "$1" = "-d" ]; then
+    # 백그라운드 모드: SSH 터미널 종료 후에도 서버 유지
+    echo "🔧 백그라운드 모드로 서버를 시작합니다..."
+    echo ""
+
+    docker exec -d "$CONTAINER_NAME" bash -c "cd $CONTAINER_WORKSPACE && ./start_inside_container.sh"
+
+    # 서버 시작 대기
+    sleep 5
+
+    # 서버 상태 확인
+    BACKEND_OK=$(docker exec "$CONTAINER_NAME" curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/ 2>/dev/null || echo "000")
+    FRONTEND_OK=$(docker exec "$CONTAINER_NAME" curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/ 2>/dev/null || echo "000")
+
+    echo "=========================================="
+    echo "서버 상태 확인"
+    echo "=========================================="
+    if [ "$BACKEND_OK" != "000" ]; then
+        echo "  ✓ 백엔드 API:  http://localhost:8000 (정상)"
+    else
+        echo "  ✗ 백엔드 API:  시작 대기 중... (로그 확인: docker exec $CONTAINER_NAME tail -f $CONTAINER_WORKSPACE/logs/backend.log)"
+    fi
+    if [ "$FRONTEND_OK" != "000" ]; then
+        echo "  ✓ 프론트엔드:  http://localhost:8080 (정상)"
+    else
+        echo "  ✗ 프론트엔드:  시작 대기 중... (로그 확인: docker exec $CONTAINER_NAME tail -f $CONTAINER_WORKSPACE/logs/frontend.log)"
+    fi
+    echo ""
+    echo "=========================================="
+    echo "서버가 백그라운드에서 실행 중입니다."
+    echo "SSH 터미널을 종료해도 서버는 계속 실행됩니다."
+    echo ""
+    echo "서버 로그 확인:"
+    echo "  docker exec $CONTAINER_NAME tail -f $CONTAINER_WORKSPACE/logs/backend.log"
+    echo "  docker exec $CONTAINER_NAME tail -f $CONTAINER_WORKSPACE/logs/frontend.log"
+    echo ""
+    echo "서버 종료:"
+    echo "  docker exec $CONTAINER_NAME bash -c 'pkill -f api_server.py; pkill -f \"python.*http.server.*8080\"'"
+    echo "=========================================="
 else
-    # 비인터랙티브 모드 (TTY 없음)
-    docker exec "$CONTAINER_NAME" bash -c "cd $CONTAINER_WORKSPACE && ./start_inside_container.sh"
+    # 포그라운드 모드 (기존 방식): Ctrl+C로 종료
+    # 컨테이너 내부에서 start_inside_container.sh 실행
+    if [ -t 0 ]; then
+        docker exec -it "$CONTAINER_NAME" bash -c "cd $CONTAINER_WORKSPACE && ./start_inside_container.sh"
+    else
+        docker exec "$CONTAINER_NAME" bash -c "cd $CONTAINER_WORKSPACE && ./start_inside_container.sh"
+    fi
 fi
 
