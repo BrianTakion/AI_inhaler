@@ -432,6 +432,7 @@ if [ "$1" = "--stop" ] || [ "$1" = "--status" ]; then
     echo "컨테이너: $CONTAINER_NAME"
     echo ""
 
+    # 1단계: SIGTERM으로 정상 종료 요청
     docker exec "$CONTAINER_NAME" bash -c '
         pkill -f "api_server.py" 2>/dev/null
         pkill -f "uvicorn.*api_server" 2>/dev/null
@@ -440,6 +441,36 @@ if [ "$1" = "--stop" ] || [ "$1" = "--status" ]; then
     ' 2>/dev/null || true
 
     sleep 2
+
+    # 2단계: 아직 살아있으면 SIGKILL로 강제 종료
+    docker exec "$CONTAINER_NAME" bash -c '
+        # PID 파일 기반 종료
+        if [ -f /workspaces/AI_inhaler/.server_pids ]; then
+            while read pid; do
+                [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null
+            done < /workspaces/AI_inhaler/.server_pids
+            rm -f /workspaces/AI_inhaler/.server_pids
+        fi
+        if [ -f /workspaces/AI_inhaler/api_server.pid ]; then
+            pid=$(cat /workspaces/AI_inhaler/api_server.pid)
+            [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null
+            rm -f /workspaces/AI_inhaler/api_server.pid
+        fi
+
+        # 패턴 매칭으로 남은 프로세스 강제 종료
+        pkill -9 -f "api_server.py" 2>/dev/null
+        pkill -9 -f "uvicorn.*api_server" 2>/dev/null
+        pkill -9 -f "python.*http.server.*8080" 2>/dev/null
+        pkill -9 -f "start_inside_container.sh" 2>/dev/null
+
+        # 포트 직접 해제 (Linux)
+        if command -v fuser >/dev/null 2>&1; then
+            fuser -k 8000/tcp 2>/dev/null
+            fuser -k 8080/tcp 2>/dev/null
+        fi
+    ' 2>/dev/null || true
+
+    sleep 1
 
     # 종료 확인
     BACKEND_OK=$(docker exec "$CONTAINER_NAME" curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/ 2>/dev/null || echo "000")
