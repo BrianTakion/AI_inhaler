@@ -28,6 +28,7 @@ import traceback
 import threading
 import time
 import signal
+from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -141,7 +142,7 @@ FIXED_LLM_MODELS = ["gpt-4.1", "gpt-4.1"]
 MAX_CONCURRENT_ANALYSES = 5
 
 # 프로세스 타임아웃 (초)
-PROCESS_TIMEOUT = 3600  # 1시간
+PROCESS_TIMEOUT = 1800  # 30분 (LLM API 120초 timeout + 3회 에러 중단으로 정상 분석은 30분 내 완료)
 
 # 파일 업로드 제한
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500MB
@@ -149,6 +150,9 @@ ALLOWED_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv'}
 
 # 파일 정리 스케줄러 설정
 CLEANUP_OLD_FILES_DURATION = 24  # 24 hours
+
+# 분석 결과 보관 시간 (완료/에러 상태)
+ANALYSIS_STORAGE_TTL_HOURS = 2
 
 # ============================================
 # FastAPI 앱 초기화
@@ -175,6 +179,13 @@ analysis_storage: Dict[str, Dict[str, Any]] = {}
 # 업로드된 비디오 저장 디렉토리
 UPLOAD_DIR = Path(project_root) / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
+
+# 전용 스레드 풀 (분석 작업 전용)
+# [FIX] 세마포어(5)보다 여유있게 설정하여 종료 지연 스레드가 있어도 새 작업 수용 가능
+analysis_executor = ThreadPoolExecutor(
+    max_workers=MAX_CONCURRENT_ANALYSES + 2,
+    thread_name_prefix="analysis"
+)
 
 # 동시 분석 제한을 위한 Semaphore
 analysis_semaphore: Optional[asyncio.Semaphore] = None
@@ -545,15 +556,28 @@ async def run_analysis_async(
             
             # 프로세스 격리된 환경에서 분석 실행
             # run_in_executor로 비동기 래핑 (블로킹 방지)
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(
-                None,
-                _run_analysis_with_process_isolation,
-                device_type,
-                video_path,
-                llm_models,
-                save_individual_report
-            )
+            # [FIX] asyncio.wait_for로 비동기 레벨 타임아웃 추가
+            #   - 프로세스 타임아웃(PROCESS_TIMEOUT) + 정리 여유(60초)
+            #   - executor 스레드가 stuck 되어도 세마포어/상태는 해제됨
+            loop = asyncio.get_running_loop()
+            try:
+                result = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        analysis_executor,
+                        _run_analysis_with_process_isolation,
+                        device_type,
+                        video_path,
+                        llm_models,
+                        save_individual_report
+                    ),
+                    timeout=PROCESS_TIMEOUT + 60
+                )
+            except asyncio.TimeoutError:
+                print(f"[비동기 타임아웃] analysis_id={analysis_id}, 타임아웃={PROCESS_TIMEOUT + 60}초")
+                result = {
+                    "status": "error",
+                    "errors": [f"비동기 실행 타임아웃 ({PROCESS_TIMEOUT + 60}초). 분석 프로세스가 응답하지 않습니다."]
+                }
             
             if result and result.get("status") == "completed":
                 # 성공
@@ -702,7 +726,8 @@ async def start_analysis(
             "result": None,
             "raw_result": None,
             "device_type": request.deviceType,
-            "video_path": video_file
+            "video_path": video_file,
+            "created_at": datetime.now(),
         }
         
         # 백그라운드 작업으로 분석 시작
@@ -847,24 +872,39 @@ def cleanup_old_files():
         print(f"[파일 정리] 오류 발생: {e}")
 
 
+def cleanup_old_analyses():
+    """TTL이 지난 completed/error 상태의 분석 결과 삭제"""
+    cutoff = datetime.now() - timedelta(hours=ANALYSIS_STORAGE_TTL_HOURS)
+    ids_to_remove = [
+        aid for aid, data in analysis_storage.items()
+        if data.get("status") not in ("pending", "processing")
+        and data.get("created_at") and data["created_at"] < cutoff
+    ]
+    for aid in ids_to_remove:
+        del analysis_storage[aid]
+    if ids_to_remove:
+        print(f"[분석 결과 정리] {len(ids_to_remove)}개 항목 삭제")
+
+
 def run_cleanup_scheduler():
     """
     파일 정리 스케줄러 실행 (백그라운드 스레드)
-    
+
     [실행 주기]
-    - 1시간마다 cleanup_old_files() 실행
+    - 1시간마다 cleanup_old_files() 및 cleanup_old_analyses() 실행
     """
     print(f"[파일 정리 스케줄러] 시작 (정리 기준: {CLEANUP_OLD_FILES_DURATION}시간, 실행 주기: 1시간)")
-    
+
     while True:
         try:
             # 1시간 대기
             time.sleep(3600)
-            
+
             # 파일 정리 실행
             print(f"[파일 정리 스케줄러] 정리 시작 ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})")
             cleanup_old_files()
-            
+            cleanup_old_analyses()
+
         except Exception as e:
             print(f"[파일 정리 스케줄러] 오류: {e}")
             # 오류 발생해도 계속 실행
@@ -911,6 +951,7 @@ async def startup_event():
     # 서버 시작 시 즉시 한 번 정리 실행
     print("[파일 정리] 서버 시작 시 초기 정리 실행")
     cleanup_old_files()
+    cleanup_old_analyses()
 
 
 @app.on_event("shutdown")
@@ -921,6 +962,7 @@ async def shutdown_event():
     - PID 파일 삭제
     """
     print("[종료] 서버 종료 이벤트 수신, 정리 중...")
+    analysis_executor.shutdown(wait=False)
     cleanup_child_processes()
     remove_pid_file()
     print("[종료] 정리 완료")

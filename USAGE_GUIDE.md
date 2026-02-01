@@ -387,7 +387,7 @@ curl -X POST http://localhost:8000/api/analysis/start \
   "errorAnalyses": 1,
   "uploadedFiles": 18,
   "uploadedSizeMB": 1250.5,
-  "processTimeoutSeconds": 3600,
+  "processTimeoutSeconds": 1800,
   "cleanupDurationHours": 24
 }
 ```
@@ -495,10 +495,11 @@ FIXED_LLM_MODELS = ["gpt-4.1", "gpt-4.1"]
 
 ```python
 MAX_CONCURRENT_ANALYSES = 5              # 최대 동시 분석 수
-PROCESS_TIMEOUT = 3600                   # 프로세스 타임아웃 (초, 기본 1시간)
+PROCESS_TIMEOUT = 1800                   # 프로세스 타임아웃 (초, 기본 30분)
 MAX_FILE_SIZE = 500 * 1024 * 1024        # 최대 업로드 파일 크기 (500MB)
 ALLOWED_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv'}
-CLEANUP_OLD_FILES_DURATION = 24          # 파일 자동 정리 기준 (시간)
+CLEANUP_OLD_FILES_DURATION = 24          # 업로드 파일 자동 정리 기준 (시간)
+ANALYSIS_STORAGE_TTL_HOURS = 2           # 완료/에러 분석 결과 메모리 보관 시간
 ```
 
 | 설정 | 조정 기준 |
@@ -507,6 +508,7 @@ CLEANUP_OLD_FILES_DURATION = 24          # 파일 자동 정리 기준 (시간)
 | `PROCESS_TIMEOUT` | 분석에 필요한 최대 시간 |
 | `MAX_FILE_SIZE` | 디스크 용량, 네트워크 대역폭 |
 | `CLEANUP_OLD_FILES_DURATION` | 디스크 용량, 보관 기간 요구사항 |
+| `ANALYSIS_STORAGE_TTL_HOURS` | 메모리 사용량, 결과 조회 필요 기간 |
 
 ### 다중 사용자 지원
 
@@ -523,13 +525,26 @@ CLEANUP_OLD_FILES_DURATION = 24          # 파일 자동 정리 기준 (시간)
 
 **프로세스 타임아웃:**
 
-- 기본 1시간, 초과 시 `terminate()` -> 10초 대기 -> `kill()` 순서로 강제 종료
+- 기본 30분, 초과 시 `terminate()` -> 10초 대기 -> `kill()` 순서로 강제 종료
+- LLM API 요청별 120초 timeout과 연속 에러 3회 중단이 적용되어, 정상 분석은 30분 내 완료됨
 
-**자동 파일 정리:**
+**LLM API Timeout:**
 
-- 24시간 이상 된 업로드 파일 자동 삭제
-- 1시간마다 스케줄러 실행
-- `uploads/` 디렉토리의 비디오 파일 및 결과 JSON 파일 정리
+- 요청당 최대 대기 시간: 120초 (OpenAI: `httpx.Timeout`, Google GenAI: `HttpOptions`)
+- 연결 수립 타임아웃: 10초
+- OpenAI 자동 재시도: 2회
+- API timeout 발생 시 `"API Error: ..."` 형태로 에러 반환 → 에이전트가 연속 3회 에러 시 탐색 중단
+
+**전용 스레드 풀:**
+
+- 분석 작업은 전용 `ThreadPoolExecutor`에서 실행 (기본 이벤트 루프 스레드 풀 오염 방지)
+- `max_workers`는 `MAX_CONCURRENT_ANALYSES`와 동일 (기본 5)
+
+**자동 정리:**
+
+- 업로드 파일: 24시간 이상 된 파일 자동 삭제 (`CLEANUP_OLD_FILES_DURATION`)
+- 분석 결과 메모리: 완료/에러 상태의 분석 결과를 2시간 후 자동 삭제 (`ANALYSIS_STORAGE_TTL_HOURS`)
+- 1시간마다 스케줄러 실행, 서버 시작 시에도 즉시 실행
 
 ### CORS 설정
 
@@ -715,8 +730,16 @@ curl http://localhost:8000/api/stats
 
 **프로세스 타임아웃 오류:**
 
-- 기본 1시간 초과 시 발생. `api_server.py`의 `PROCESS_TIMEOUT` 값 조정
+- 기본 30분 초과 시 발생. `api_server.py`의 `PROCESS_TIMEOUT` 값 조정
+- LLM API 120초 timeout + 연속 3회 에러 중단이 적용되어 무한 대기는 방지됨
 - 또는 비디오 길이를 줄이거나 분석 로직 최적화 고려
+
+**LLM API 연속 오류로 분석이 조기 종료되는 경우:**
+
+- 로그에 `API 오류 (3/3)` 또는 `연속 API 오류 한도 도달` 메시지 확인
+- API 키가 유효하고 사용 한도가 남아있는지 확인 (`app_server/.env`)
+- LLM API 서비스 상태 확인: [OpenAI Status](https://status.openai.com/) | [Google Cloud Status](https://status.cloud.google.com/)
+- 네트워크 연결 상태 확인 (10초 내 연결 수립 실패 시 timeout)
 
 **디스크 공간 부족:**
 

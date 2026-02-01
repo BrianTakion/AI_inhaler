@@ -32,7 +32,10 @@ class VideoAnalyzerAgent:
        - 신뢰도 평가
        - 시간대별 행동 매핑
     """
-    
+
+    MAX_CONSECUTIVE_API_ERRORS = 3
+    ERROR_RESPONSE_PREFIXES = ("API Error:", "Image Error:", "Video Error:")
+
     def __init__(self, mllm, video_processor: VideoProcessorAgent, model_id: str, model_name: str):
         """
         Args:
@@ -362,37 +365,57 @@ Q6_Confidence: [0.0 to 1.0, indicating your confidence level in the answer]
         
         q_answers_accumulated = {}
         final_start_time = start_time
-        
+        consecutive_errors = 0
+        iteration_count = 0
+        MAX_ITERATIONS = 200
+
         while start_time <= play_time - segment_time:
+            iteration_count += 1
+            if iteration_count > MAX_ITERATIONS:
+                print(f'[{self.model_id}] 최대 반복 횟수 초과, 탐색 종료')
+                break
+
             print(f'[{self.model_id}] 검색 중... start_time={start_time:.1f}초')
             end_time = start_time + segment_time
-            
+
             # 프레임 추출
             output_image, _, _ = self.video_processor.extract_frames(
                 video_path, start_time, end_time, M, N, gridSize, (0, 0)
             )
-            
+
             # LLM 쿼리
             response = self.mllm.query_answer_chatGPT(
                 system_prompt, user_prompt, image_array=output_image
             )
-            
+
+            # API 에러 감지
+            if isinstance(response, str) and response.startswith(self.ERROR_RESPONSE_PREFIXES):
+                consecutive_errors += 1
+                print(f'[{self.model_id}] API 오류 ({consecutive_errors}/{self.MAX_CONSECUTIVE_API_ERRORS}): {response[:100]}')
+                if consecutive_errors >= self.MAX_CONSECUTIVE_API_ERRORS:
+                    print(f'[{self.model_id}] 연속 API 오류 한도 도달, 탐색 종료')
+                    break
+                start_time += offset_time
+                continue
+            else:
+                consecutive_errors = 0
+
             # 응답 파싱
             overall_answer = self._parse_overall_answer(response)
             current_q_answers, current_q_confidence = self._parse_q_answers(response)
-            
+
             # 누적 저장
             for q_key, answer in current_q_answers.items():
                 if q_key not in q_answers_accumulated:
                     q_answers_accumulated[q_key] = []
                 confidence = current_q_confidence.get(q_key, None)
                 q_answers_accumulated[q_key].append((round(start_time, 1), answer, confidence))
-            
+
             # 종료 조건
             if overall_answer == "YES":
                 final_start_time = round(start_time, 1)
                 break
-            
+
             start_time += offset_time
         
         # 루프 종료 후 처리

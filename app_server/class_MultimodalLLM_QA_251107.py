@@ -6,6 +6,10 @@ import io
 import uuid
 import shutil
 
+# LLM API Timeout 설정
+LLM_API_TIMEOUT_SECONDS = 120       # 요청당 최대 대기 시간 (2분)
+LLM_API_CONNECT_TIMEOUT_SECONDS = 10  # 연결 수립 타임아웃 (10초)
+
 class multimodalLLM:
     """ multimodalLLM에 관한 모음집 - OpenAI GPT 및 Google Gemini 지원"""
     
@@ -42,10 +46,19 @@ class multimodalLLM:
         
         if self.provider == "openai":  # OpenAI 모델들
             from openai import OpenAI
-            self.client = OpenAI(api_key=api_key)
+            import httpx
+            self.client = OpenAI(
+                api_key=api_key,
+                timeout=httpx.Timeout(LLM_API_TIMEOUT_SECONDS, connect=LLM_API_CONNECT_TIMEOUT_SECONDS),
+                max_retries=2,
+            )
         elif self.provider == "google":  # Google Gemini 모델들
             from google import genai
-            self.client = genai.Client(api_key=api_key)
+            from google.genai import types as genai_types
+            self.client = genai.Client(
+                api_key=api_key,
+                http_options=genai_types.HttpOptions(timeout=LLM_API_TIMEOUT_SECONDS * 1000),
+            )
             self.llm_name_for_api = self.llm_name  # API 호출 시 사용할 모델명 저장
         else:  # ollama 등 다른 모델
             pass
@@ -471,19 +484,32 @@ class multimodalLLM:
             
             if self.provider == "openai":
                 from openai import OpenAI
-                self.client = OpenAI(api_key=api_key)
+                import httpx
+                self.client = OpenAI(
+                    api_key=api_key,
+                    timeout=httpx.Timeout(LLM_API_TIMEOUT_SECONDS, connect=LLM_API_CONNECT_TIMEOUT_SECONDS),
+                    max_retries=2,
+                )
             elif self.provider == "google":
                 from google import genai
-                self.client = genai.Client(api_key=api_key)
+                from google.genai import types as genai_types
+                self.client = genai.Client(
+                    api_key=api_key,
+                    http_options=genai_types.HttpOptions(timeout=LLM_API_TIMEOUT_SECONDS * 1000),
+                )
                 self.llm_name_for_api = self.llm_name
         elif self.provider == "google":
             # Gemini는 모델이 변경되면 새 Client 인스턴스 필요 (실제로는 동일 클라이언트 사용 가능)
             from google import genai
+            from google.genai import types as genai_types
             if api_key is None:
                 # 기존 클라이언트 재사용 (모델명만 변경)
                 self.llm_name_for_api = self.llm_name
             else:
-                self.client = genai.Client(api_key=api_key)
+                self.client = genai.Client(
+                    api_key=api_key,
+                    http_options=genai_types.HttpOptions(timeout=LLM_API_TIMEOUT_SECONDS * 1000),
+                )
                 self.llm_name_for_api = self.llm_name
         
         print(f"모델이 {new_model_name}로 변경되었습니다.")

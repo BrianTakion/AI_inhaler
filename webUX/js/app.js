@@ -292,17 +292,27 @@ class InhalerAnalysisApp {
      */
     startStatusPolling() {
         const pollInterval = 2000; // 2초마다
-        
+        const MAX_POLL_DURATION_MS = 40 * 60 * 1000; // 전체 폴링 타임아웃: 40분
+        const MAX_CONSECUTIVE_ERRORS = 30;            // 연속 오류 상한: 30회 (60초)
+        const pollStartTime = Date.now();
+        let consecutiveErrors = 0;
+
         const poll = async () => {
+            // 전체 타임아웃 검사
+            if (Date.now() - pollStartTime > MAX_POLL_DURATION_MS) {
+                this.stopStatusPolling();
+                this.showError('분석 시간 초과',
+                    '서버 응답 대기 시간이 초과되었습니다. 페이지를 새로고침한 후 다시 시도해주세요.');
+                return;
+            }
+
             try {
                 const status = await this.api.getAnalysisStatus(this.analysisId);
-                
+                consecutiveErrors = 0; // 성공 시 초기화
+
                 // 프로그레스 바 업데이트 (서버에서 받은 실제 진행률 사용)
                 this.updateProgressBar(status.progress, status.current_stage);
-                
-                // 로그는 자동 업데이트로 대체 (서버 로그는 사용하지 않음)
-                // this.updateAnalysisLogs(status.logs);
-                
+
                 if (status.status === 'completed') {
                     this.stopStatusPolling();
                     this.stopProgressAutoUpdate();
@@ -319,11 +329,18 @@ class InhalerAnalysisApp {
                 }
             } catch (error) {
                 console.error('상태 조회 오류:', error);
-                // 오류가 발생해도 계속 시도
+                consecutiveErrors++;
+
+                if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+                    this.stopStatusPolling();
+                    this.showError('서버 연결 오류',
+                        '서버와의 연결이 끊어졌습니다. 페이지를 새로고침한 후 다시 시도해주세요.');
+                    return;
+                }
                 this.statusPollInterval = setTimeout(poll, pollInterval);
             }
         };
-        
+
         // 첫 폴링 시작
         poll();
     }
