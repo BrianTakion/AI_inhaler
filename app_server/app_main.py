@@ -358,7 +358,8 @@ def main():
     # "gpt-4.1", "gpt-5-nano", "gpt-5.1", "gpt-5.2"
     # "gemini-2.5-pro", "gemini-3-flash-preview", "gemini-3-pro-preview"
     #set_llm_models = ['gpt-4.1', 'gpt-5.1', 'gemini-2.5-pro', 'gemini-3-flash-preview']
-    set_llm_models = ['gpt-4.1', 'gpt-4.1']
+    #set_llm_models = ['gpt-4.1', 'gpt-4.1']
+    set_llm_models = ['gpt-4.1', 'gpt-4.1', 'gemini-3-flash-preview', 'gemini-3-flash-preview']
     save_individual_report = True  # 개별 리포트 저장 여부 (True: 저장, False: 저장하지 않기)
     
     result = run_device_analysis(

@@ -31,6 +31,9 @@ class InhalerAnalysisApp {
      */
     async init() {
         this.setupEventListeners();
+        // [FIX] 페이지 로드 시 자동 초기화 — 사용자 수동 초기화에 의존하지 않고
+        // 브라우저 back/forward 캐시(bfcache)에서 복원된 stale 상태를 방지.
+        this.resetAll();
         await this.loadServerConfig();
         this.checkServerConnection();
     }
@@ -88,6 +91,9 @@ class InhalerAnalysisApp {
             if (file) {
                 this.handleFileSelect(file);
             }
+            // [FIX] iPhone Safari에서 같은 파일을 다시 선택할 수 있도록 value 초기화.
+            // value를 초기화하지 않으면 동일 파일 선택 시 change 이벤트가 발생하지 않음.
+            e.target.value = '';
         });
         
         // 분석 시작 버튼
@@ -99,7 +105,12 @@ class InhalerAnalysisApp {
         document.getElementById('saveResultBtn').addEventListener('click', () => {
             this.saveResults();
         });
-        
+
+        // 초기화 버튼
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            this.resetAll();
+        });
+
         // 에러 모달 닫기
         document.getElementById('errorCloseBtn').addEventListener('click', () => {
             document.getElementById('errorModal').classList.add('hidden');
@@ -186,11 +197,26 @@ class InhalerAnalysisApp {
             this.showError('오류', '기기와 파일을 먼저 선택해주세요.');
             return;
         }
-        
+
+        // [FIX] 기존 타이머/폴링 정리 (이전 분석에서 남은 상태 방지)
+        this.stopStatusPolling();
+
+        // [FIX] 분석 진행 중 중복 클릭 방지
+        const startBtn = document.getElementById('startAnalysisBtn');
+        startBtn.disabled = true;
+
+        // [FIX] 프로그레스 바를 0%로 초기화 (이전 분석의 100% 값이 남아있는 문제 방지)
+        const progressFill = document.getElementById('progressFill');
+        const progressPercent = document.getElementById('progressPercent');
+        const progressStage = document.getElementById('progressStage');
+        if (progressFill) progressFill.style.width = '0%';
+        if (progressPercent) progressPercent.textContent = '0%';
+        if (progressStage) progressStage.textContent = '처리 중...';
+
         try {
             // 분석 시작 시간 기록
             this.analysisStartTime = new Date();
-            
+
             // 분석 로그 초기화 및 시작 시간 표시
             this.clearAnalysisLogs();
             const startTimeStr = this.analysisStartTime.toLocaleTimeString('ko-KR', {
@@ -199,25 +225,25 @@ class InhalerAnalysisApp {
                 second: '2-digit'
             });
             this.addLog(`시작시간: ${startTimeStr}`);
-            
+
             // 분석 정보 표시
             this.showAnalysisInfo();
-            
+
             // 프로그레스 바 자동 증가 시작 (3초마다)
             this.startProgressAutoUpdate();
-            
+
             // 진행 중 로그 업데이트 시작 (10초마다)
             this.startProgressLogUpdate();
-            
+
             // 분석 시작 API 호출
             const response = await this.api.startAnalysis(
                 this.videoId,
                 this.selectedDevice,
                 true  // saveIndividualReport
             );
-            
+
             this.analysisId = response.analysisId;
-            
+
             // 상태 폴링 시작
             this.startStatusPolling();
         } catch (error) {
@@ -225,6 +251,8 @@ class InhalerAnalysisApp {
             this.showError('분석 시작 실패', error.message || '분석을 시작할 수 없습니다.');
             this.stopProgressAutoUpdate();
             this.stopProgressLogUpdate();
+            // [FIX] 오류 시 버튼 다시 활성화
+            startBtn.disabled = !(this.selectedDevice && this.videoId);
         }
     }
     
@@ -249,7 +277,7 @@ class InhalerAnalysisApp {
                     progressStage.textContent = '처리 중...';
                 }
             }
-        }, 5000); // 5초마다
+        }, 7000); // 7초마다
     }
     
     /**
@@ -301,6 +329,7 @@ class InhalerAnalysisApp {
             // 전체 타임아웃 검사
             if (Date.now() - pollStartTime > MAX_POLL_DURATION_MS) {
                 this.stopStatusPolling();
+                this.updateButtonStates(); // [FIX] 버튼 상태 복원
                 this.showError('분석 시간 초과',
                     '서버 응답 대기 시간이 초과되었습니다. 페이지를 새로고침한 후 다시 시도해주세요.');
                 return;
@@ -322,6 +351,7 @@ class InhalerAnalysisApp {
                     this.stopStatusPolling();
                     this.stopProgressAutoUpdate();
                     this.stopProgressLogUpdate();
+                    this.updateButtonStates(); // [FIX] 버튼 상태 복원
                     this.showError('분석 오류', status.error || '알 수 없는 오류가 발생했습니다.');
                 } else {
                     // 계속 폴링
@@ -333,6 +363,7 @@ class InhalerAnalysisApp {
 
                 if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
                     this.stopStatusPolling();
+                    this.updateButtonStates(); // [FIX] 버튼 상태 복원
                     this.showError('서버 연결 오류',
                         '서버와의 연결이 끊어졌습니다. 페이지를 새로고침한 후 다시 시도해주세요.');
                     return;
@@ -356,7 +387,70 @@ class InhalerAnalysisApp {
         this.stopProgressAutoUpdate();
         this.stopProgressLogUpdate();
     }
-    
+
+    /**
+     * 전체 초기화
+     * 모든 상태, 타이머, UI를 초기 상태로 되돌림.
+     * 분석 진행 중이거나 완료 후 새로운 분석을 시작할 때 사용.
+     */
+    resetAll() {
+        // 1. 모든 타이머/폴링 중지
+        this.stopStatusPolling();
+
+        // 2. 앱 상태 초기화
+        this.selectedDevice = null;
+        this.uploadedFile = null;
+        this.videoId = null;
+        this.analysisId = null;
+        this.analysisResult = null;
+        this.analysisStartTime = null;
+
+        // 3. 파일 입력 초기화
+        const fileInput = document.getElementById('fileInput');
+        if (fileInput) fileInput.value = '';
+
+        // 4. 비디오 스냅샷 blob URL 해제 (메모리 정리)
+        const videoSnapshotSource = document.getElementById('videoSnapshotSource');
+        if (videoSnapshotSource && videoSnapshotSource.src) {
+            URL.revokeObjectURL(videoSnapshotSource.src);
+            videoSnapshotSource.src = '';
+        }
+
+        // 5. UI 영역 초기화 (업로드 영역만 표시)
+        document.getElementById('uploadArea').classList.remove('hidden');
+        document.getElementById('analysisArea').classList.add('hidden');
+        document.getElementById('resultArea').classList.add('hidden');
+
+        // 6. 업로드 프롬프트 복원
+        const uploadPrompt = document.getElementById('uploadPrompt');
+        if (uploadPrompt) uploadPrompt.classList.remove('hidden');
+
+        // 7. 업로드 정보/파일 정보/스냅샷 숨기기
+        document.getElementById('uploadedFileInfo').classList.add('hidden');
+        document.getElementById('fileInfoDisplay').classList.add('hidden');
+        document.getElementById('videoSnapshotDisplay').classList.add('hidden');
+
+        // 8. 프로그레스 바 초기화
+        const progressFill = document.getElementById('progressFill');
+        const progressPercent = document.getElementById('progressPercent');
+        const progressStage = document.getElementById('progressStage');
+        if (progressFill) progressFill.style.width = '0%';
+        if (progressPercent) progressPercent.textContent = '0%';
+        if (progressStage) progressStage.textContent = '처리 중...';
+
+        // 9. 분석 로그 초기화
+        this.clearAnalysisLogs();
+
+        // 10. 기기 선택 버튼 텍스트 복원
+        document.getElementById('deviceSelectBtn').textContent = '1. 기기 선택 ▼';
+
+        // 11. 에러 모달 닫기
+        document.getElementById('errorModal').classList.add('hidden');
+
+        // 12. 버튼 상태 초기화
+        this.updateButtonStates();
+    }
+
     /**
      * 분석 결과 로드
      */

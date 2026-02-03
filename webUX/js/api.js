@@ -7,6 +7,36 @@ const API_BASE_URL = `${window.location.protocol}//${window.location.hostname}:8
 
 class APIClient {
     /**
+     * AbortController 기반 fetch 래퍼.
+     * Safari에서 stale connection 재사용 시 fetch()가 무한 대기하는 문제를 방지.
+     * 지정된 시간(ms) 내에 응답이 없으면 요청을 abort하여 catch 블록으로 제어를 돌려줌.
+     *
+     * @param {string} url - 요청 URL
+     * @param {Object} options - fetch 옵션
+     * @param {number} timeoutMs - 타임아웃 (밀리초)
+     * @returns {Promise<Response>} fetch 응답
+     */
+    async fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+        try {
+            const response = await fetch(url, {
+                ...options,
+                signal: controller.signal
+            });
+            return response;
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                throw new Error('서버 응답 시간이 초과되었습니다. 네트워크 상태를 확인하세요.');
+            }
+            throw error;
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    }
+
+    /**
      * 서버 상태 확인
      * @returns {Promise<Object>} 서버 정보
      */
@@ -14,7 +44,7 @@ class APIClient {
         try {
             // 현재 호스트 기반으로 서버 주소 동적 설정
             const serverUrl = `${window.location.protocol}//${window.location.hostname}:8000/`;
-            const response = await fetch(serverUrl);
+            const response = await this.fetchWithTimeout(serverUrl, {}, 5000);
             if (!response.ok) {
                 throw new Error(`서버 응답 오류: ${response.status}`);
             }
@@ -34,15 +64,17 @@ class APIClient {
         formData.append('file', file);
 
         try {
-            const response = await fetch(`${API_BASE_URL}/video/upload`, {
-                method: 'POST',
-                body: formData
-            });
+            // 대용량 파일 업로드: 5분 타임아웃
+            const response = await this.fetchWithTimeout(
+                `${API_BASE_URL}/video/upload`,
+                { method: 'POST', body: formData },
+                5 * 60 * 1000
+            );
 
             if (!response.ok) {
                 const errorText = await response.text().catch(() => '');
                 let errorMessage = '비디오 업로드에 실패했습니다.';
-                
+
                 if (response.status === 404) {
                     errorMessage = 'API 서버를 찾을 수 없습니다. 서버 주소를 확인하세요.';
                 } else if (response.status === 500) {
@@ -55,7 +87,7 @@ class APIClient {
                         errorMessage = errorText || errorMessage;
                     }
                 }
-                
+
                 throw new Error(errorMessage);
             }
 
@@ -77,22 +109,20 @@ class APIClient {
      */
     async startAnalysis(videoId, deviceType, saveIndividualReport = true) {
         try {
-            const response = await fetch(`${API_BASE_URL}/analysis/start`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
+            const response = await this.fetchWithTimeout(
+                `${API_BASE_URL}/analysis/start`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ videoId, deviceType, saveIndividualReport })
                 },
-                body: JSON.stringify({
-                    videoId,
-                    deviceType,
-                    saveIndividualReport
-                })
-            });
+                30000
+            );
 
             if (!response.ok) {
                 const errorText = await response.text().catch(() => '');
                 let errorMessage = '분석 시작에 실패했습니다.';
-                
+
                 if (errorText) {
                     try {
                         const errorJson = JSON.parse(errorText);
@@ -101,7 +131,7 @@ class APIClient {
                         errorMessage = errorText || errorMessage;
                     }
                 }
-                
+
                 throw new Error(errorMessage);
             }
 
@@ -116,12 +146,19 @@ class APIClient {
 
     /**
      * 분석 상태 조회
+     * 캐시 방지를 위해 타임스탬프 파라미터 추가.
+     * Safari가 동일 URL의 GET 응답을 캐싱하여 stale 상태를 반환하는 문제 방지.
+     *
      * @param {string} analysisId - 분석 ID
      * @returns {Promise<Object>} 분석 상태 (status, progress, current_stage, logs, error)
      */
     async getAnalysisStatus(analysisId) {
         try {
-            const response = await fetch(`${API_BASE_URL}/analysis/status/${analysisId}`);
+            const response = await this.fetchWithTimeout(
+                `${API_BASE_URL}/analysis/status/${analysisId}?_t=${Date.now()}`,
+                {},
+                10000
+            );
 
             if (!response.ok) {
                 if (response.status === 404) {
@@ -146,7 +183,11 @@ class APIClient {
      */
     async getAnalysisResult(analysisId) {
         try {
-            const response = await fetch(`${API_BASE_URL}/analysis/result/${analysisId}`);
+            const response = await this.fetchWithTimeout(
+                `${API_BASE_URL}/analysis/result/${analysisId}?_t=${Date.now()}`,
+                {},
+                30000
+            );
 
             if (!response.ok) {
                 if (response.status === 404) {
@@ -176,7 +217,11 @@ class APIClient {
      */
     async downloadResult(analysisId, format = 'json') {
         try {
-            const response = await fetch(`${API_BASE_URL}/analysis/download/${analysisId}?format=${format}`);
+            const response = await this.fetchWithTimeout(
+                `${API_BASE_URL}/analysis/download/${analysisId}?format=${format}`,
+                {},
+                60000
+            );
 
             if (!response.ok) {
                 throw new Error('결과 다운로드에 실패했습니다.');
@@ -197,7 +242,11 @@ class APIClient {
      */
     async getConfig() {
         try {
-            const response = await fetch(`${API_BASE_URL}/config`);
+            const response = await this.fetchWithTimeout(
+                `${API_BASE_URL}/config`,
+                {},
+                10000
+            );
             if (!response.ok) {
                 throw new Error(`설정 조회 실패: ${response.status}`);
             }
@@ -210,4 +259,3 @@ class APIClient {
 
 // Export for use in other modules
 export default APIClient;
-

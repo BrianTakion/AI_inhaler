@@ -132,8 +132,8 @@ def graceful_shutdown(signum, frame):
 # "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro" (2026.06.17 종료 예정)
 # "gemini-3-flash-preview", "gemini-3-pro-preview" (최신)
 #FIXED_LLM_MODELS = ["gpt-4.1", "gpt-5.1", "gemini-2.5-pro", "gemini-3-flash-preview"]
-#FIXED_LLM_MODELS = ["gpt-4.1", "gpt-4.1", "gemini-3-flash-preview", "gemini-3-flash-preview"]
-FIXED_LLM_MODELS = ["gpt-4.1", "gpt-4.1"]
+FIXED_LLM_MODELS = ["gpt-4.1", "gpt-4.1", "gemini-3-flash-preview", "gemini-3-flash-preview"]
+#FIXED_LLM_MODELS = ["gpt-4.1", "gpt-4.1"]
 
 # ============================================
 # 자원 제한 및 파일 관리 설정
@@ -169,6 +169,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ============================================
+# Cache-Control 미들웨어 (Safari 캐싱 방지)
+# ============================================
+# Safari는 Cache-Control 헤더가 없는 GET 응답을 heuristic 캐싱할 수 있음.
+# 이로 인해 status polling이 stale 데이터를 반환하여 분석 완료를 감지하지 못하는 문제 발생.
+# 모든 /api/ 응답에 no-store 헤더를 추가하여 브라우저 캐싱을 완전 차단.
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+
+
+class NoCacheMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: StarletteRequest, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
+
+
+app.add_middleware(NoCacheMiddleware)
 
 # ============================================
 # 전역 상태 관리
@@ -1025,7 +1047,10 @@ if __name__ == "__main__":
 
     import uvicorn
     try:
-        uvicorn.run(app, host="0.0.0.0", port=8000)
+        # [FIX] timeout_keep_alive를 120초로 설정하여 Safari의 stale connection 문제 방지.
+        # 기본값(5초)이면 분석 완료 후 결과를 확인하는 짧은 시간에도 연결이 끊겨
+        # Safari가 죽은 연결을 재사용하여 두 번째 요청이 hang되는 현상 발생.
+        uvicorn.run(app, host="0.0.0.0", port=8000, timeout_keep_alive=120)
     finally:
         cleanup_child_processes()
         remove_pid_file()
