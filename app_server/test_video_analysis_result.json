@@ -1,0 +1,19 @@
+{
+  "timestamp": "2026-01-31T13:10:28.832154",
+  "video_path": "/workspaces/AI_inhaler/uploads/a9a4b9b9-3ead-4544-8b1b-e93cb1f682e0.mp4",
+  "results": [
+    {
+      "model": "gpt-4.1",
+      "status": "success",
+      "elapsed_time": 89.632785,
+      "answer_length": 3637,
+      "answer_preview": "Certainly! Here is a detailed analysis of the video sequence you provided:\n\n---\n\n### 1. **Type of Device or Inhaler**\n- The device shown is a **soft mist inhaler** (SMI), likely a Respimat or similar type. This is inferred from the cylindrical shape, the cap that flips open, and the way the user holds and actuates the device. SMIs are commonly used for medications like tiotropium or olodaterol.\n\n---\n\n### 2. **Actions Being Performed**\n- The patient is preparing and using the inhaler. The sequenc..."
+    },
+    {
+      "model": "gemini-3-flash-preview",
+      "status": "error",
+      "error": "API Error: 403 PERMISSION_DENIED. {'error': {'code': 403, 'message': \"Permission denied: Consumer 'api_key:AIzaSyAtrAlafmR61TcY5yOT3B_ZasLDX5A8S9M' has been suspended.\", 'status': 'PERMISSION_DENIED', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'CONSUMER_SUSPENDED', 'domain': 'googleapis.com', 'metadata': {'containerInfo': 'api_key:AIzaSyAtrAlafmR61TcY5yOT3B_ZasLDX5A8S9M', 'service': 'generativelanguage.googleapis.com', 'consumer': 'projects/294403476112'}}, {'@type': 'type.googleapis.com/google.rpc.LocalizedMessage', 'locale': 'en-US', 'message': \"Permission denied: Consumer 'api_key:AIzaSyAtrAlafmR61TcY5yOT3B_ZasLDX5A8S9M' has been suspended.\"}]}}",
+      "elapsed_time": 6.527248
+    }
+  ]
+}
