@@ -990,6 +990,15 @@ async def shutdown_event():
     print("[종료] 정리 완료")
 
 
+@app.get("/api/health")
+async def health_check():
+    """
+    경량 헬스체크 엔드포인트.
+    서버 생존 여부만 빠르게 확인하는 용도.
+    """
+    return {"status": "ok"}
+
+
 @app.get("/")
 async def root():
     """

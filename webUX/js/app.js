@@ -319,17 +319,21 @@ class InhalerAnalysisApp {
      * 분석 상태 폴링 시작
      */
     startStatusPolling() {
-        const pollInterval = 2000; // 2초마다
+        const NORMAL_POLL_INTERVAL = 2000;   // 정상 폴링 간격: 2초
+        const SLOW_POLL_INTERVAL = 5000;     // 헬스체크 통과 후 폴링 간격: 5초
         const MAX_POLL_DURATION_MS = 40 * 60 * 1000; // 전체 폴링 타임아웃: 40분
-        const MAX_CONSECUTIVE_ERRORS = 30;            // 연속 오류 상한: 30회 (60초)
+        const MAX_CONSECUTIVE_ERRORS = 30;   // 연속 오류 상한: 30회 (60초)
+        const MAX_HEALTH_CHECK_FAILS = 2;    // 헬스체크 연속 실패 상한
         const pollStartTime = Date.now();
         let consecutiveErrors = 0;
+        let healthCheckFailCount = 0;
+        let currentPollInterval = NORMAL_POLL_INTERVAL;
 
         const poll = async () => {
             // 전체 타임아웃 검사
             if (Date.now() - pollStartTime > MAX_POLL_DURATION_MS) {
                 this.stopStatusPolling();
-                this.updateButtonStates(); // [FIX] 버튼 상태 복원
+                this.updateButtonStates();
                 this.showError('분석 시간 초과',
                     '서버 응답 대기 시간이 초과되었습니다. 페이지를 새로고침한 후 다시 시도해주세요.');
                 return;
@@ -337,7 +341,9 @@ class InhalerAnalysisApp {
 
             try {
                 const status = await this.api.getAnalysisStatus(this.analysisId);
-                consecutiveErrors = 0; // 성공 시 초기화
+                consecutiveErrors = 0;
+                healthCheckFailCount = 0;
+                currentPollInterval = NORMAL_POLL_INTERVAL;
 
                 // 프로그레스 바 업데이트 (서버에서 받은 실제 진행률 사용)
                 this.updateProgressBar(status.progress, status.current_stage);
@@ -351,24 +357,59 @@ class InhalerAnalysisApp {
                     this.stopStatusPolling();
                     this.stopProgressAutoUpdate();
                     this.stopProgressLogUpdate();
-                    this.updateButtonStates(); // [FIX] 버튼 상태 복원
+                    this.updateButtonStates();
                     this.showError('분석 오류', status.error || '알 수 없는 오류가 발생했습니다.');
                 } else {
-                    // 계속 폴링
-                    this.statusPollInterval = setTimeout(poll, pollInterval);
+                    this.statusPollInterval = setTimeout(poll, currentPollInterval);
                 }
             } catch (error) {
                 console.error('상태 조회 오류:', error);
+
+                // 404 "분석 작업을 찾을 수 없습니다" → 서버 재시작으로 데이터 유실
+                if (error.message && error.message.includes('분석 작업을 찾을 수 없습니다')) {
+                    this.stopStatusPolling();
+                    this.updateButtonStates();
+                    this.showError('분석 데이터 유실',
+                        '서버가 재시작되어 분석 데이터가 유실되었습니다. 다시 분석을 시작해주세요.');
+                    return;
+                }
+
                 consecutiveErrors++;
 
                 if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-                    this.stopStatusPolling();
-                    this.updateButtonStates(); // [FIX] 버튼 상태 복원
-                    this.showError('서버 연결 오류',
-                        '서버와의 연결이 끊어졌습니다. 페이지를 새로고침한 후 다시 시도해주세요.');
-                    return;
+                    // 서버 헬스체크 수행
+                    console.log('연속 오류 상한 도달, 서버 헬스체크 수행...');
+                    const isServerAlive = await this.api.checkHealth();
+
+                    if (isServerAlive) {
+                        // 서버는 살아있음 → 카운터 리셋, 느린 간격으로 계속 폴링
+                        console.log('서버 헬스체크 통과, 폴링 계속 (간격: 5초)');
+                        consecutiveErrors = 0;
+                        healthCheckFailCount = 0;
+                        currentPollInterval = SLOW_POLL_INTERVAL;
+                        this.statusPollInterval = setTimeout(poll, currentPollInterval);
+                    } else {
+                        // 서버 헬스체크 실패
+                        healthCheckFailCount++;
+                        console.log(`서버 헬스체크 실패 (${healthCheckFailCount}/${MAX_HEALTH_CHECK_FAILS})`);
+
+                        if (healthCheckFailCount >= MAX_HEALTH_CHECK_FAILS) {
+                            // 2회 연속 헬스체크 실패 → 최종 오류
+                            this.stopStatusPolling();
+                            this.updateButtonStates();
+                            this.showError('서버 연결 오류',
+                                '서버와의 연결이 끊어졌습니다. 페이지를 새로고침한 후 다시 시도해주세요.');
+                            return;
+                        }
+
+                        // 아직 재시도 기회 남음 → 카운터 리셋 후 계속
+                        consecutiveErrors = 0;
+                        currentPollInterval = SLOW_POLL_INTERVAL;
+                        this.statusPollInterval = setTimeout(poll, currentPollInterval);
+                    }
+                } else {
+                    this.statusPollInterval = setTimeout(poll, currentPollInterval);
                 }
-                this.statusPollInterval = setTimeout(poll, pollInterval);
             }
         };
 

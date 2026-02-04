@@ -37,6 +37,22 @@ class APIClient {
     }
 
     /**
+     * 서버 생존 여부만 빠르게 확인하는 경량 헬스체크.
+     * 폴링 오류 시 서버가 살아있는지 판별하는 용도.
+     * @returns {Promise<boolean>} 서버 생존 여부
+     */
+    async checkHealth() {
+        try {
+            const response = await this.fetchWithTimeout(
+                `${API_BASE_URL}/health`, {}, 5000
+            );
+            return response.ok;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
      * 서버 상태 확인
      * @returns {Promise<Object>} 서버 정보
      */
