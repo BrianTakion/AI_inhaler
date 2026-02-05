@@ -5,6 +5,7 @@ from PIL import Image
 import io
 import uuid
 import shutil
+import time
 
 # LLM API Timeout 설정
 LLM_API_TIMEOUT_SECONDS = 120       # 요청당 최대 대기 시간 (2분)
@@ -423,24 +424,35 @@ class multimodalLLM:
                     print(f"이미지 파일 처리 중 오류 발생: {e}")
                     return f"Image Error: Error processing image file: {str(e)}"
             
-            # Gemini API 호출 (새 SDK 사용)
+            # Gemini API 호출 (새 SDK 사용) - 재시도 로직 포함
             generation_config = types.GenerateContentConfig(
                 max_output_tokens=max_output_tokens,
                 temperature=temperature,
             )
-            
-            response = self.client.models.generate_content(
-                model=self.llm_name,
-                contents=contents,
-                config=generation_config
-            )
-            
-            return response.text
-            
-        except Exception as e:
-            error_msg = str(e)
-            print(f"{self.llm_name} API 호출 중 오류 발생: {error_msg}")
-            
+
+            max_retries = 2
+            last_error = None
+            for attempt in range(max_retries + 1):
+                try:
+                    response = self.client.models.generate_content(
+                        model=self.llm_name,
+                        contents=contents,
+                        config=generation_config
+                    )
+                    return response.text
+                except Exception as e:
+                    last_error = e
+                    if attempt < max_retries and self._is_retryable_error(e):
+                        wait_time = 2 ** attempt  # 1초, 2초
+                        print(f"[{self.llm_name}] 일시적 오류, 재시도 {attempt+1}/{max_retries} ({wait_time}초 대기): {e}")
+                        time.sleep(wait_time)
+                        continue
+                    break
+
+            # 모든 재시도 실패 시 오류 반환
+            error_msg = str(last_error)
+            print(f"{self.llm_name} API 호출 중 오류 발생 (재시도 {max_retries}회 포함): {error_msg}")
+
             # 구체적인 오류 메시지 제공
             if "quota" in error_msg.lower() or "rate" in error_msg.lower():
                 return f"API Error: API 호출 한도 초과. 잠시 후 다시 시도해주세요."
@@ -448,7 +460,23 @@ class multimodalLLM:
                 return f"API Error: API 키가 유효하지 않습니다."
             else:
                 return f"API Error: {error_msg}"
-    
+
+        except Exception as e:
+            error_msg = str(e)
+            print(f"{self.llm_name} API 호출 중 예외 발생: {error_msg}")
+            if "quota" in error_msg.lower() or "rate" in error_msg.lower():
+                return f"API Error: API 호출 한도 초과. 잠시 후 다시 시도해주세요."
+            elif "invalid" in error_msg.lower() and "api" in error_msg.lower():
+                return f"API Error: API 키가 유효하지 않습니다."
+            else:
+                return f"API Error: {error_msg}"
+
+    def _is_retryable_error(self, error):
+        """일시적/재시도 가능한 오류인지 판별"""
+        error_msg = str(error).lower()
+        retryable_keywords = ['timeout', 'timed out', 'connection', 'unavailable', '503', '429', '500', 'reset', 'broken pipe', 'eof', 'remote end closed']
+        return any(kw in error_msg for kw in retryable_keywords)
+
     def get_model_info(self):
         """현재 설정된 모델의 정보를 반환합니다."""
         return {
