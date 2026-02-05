@@ -323,7 +323,8 @@ class InhalerAnalysisApp {
         const SLOW_POLL_INTERVAL = 5000;     // 헬스체크 통과 후 폴링 간격: 5초
         const MAX_POLL_DURATION_MS = 40 * 60 * 1000; // 전체 폴링 타임아웃: 40분
         const MAX_CONSECUTIVE_ERRORS = 30;   // 연속 오류 상한: 30회 (60초)
-        const MAX_HEALTH_CHECK_FAILS = 2;    // 헬스체크 연속 실패 상한
+        const MAX_HEALTH_CHECK_FAILS = 3;    // 헬스체크 연속 실패 상한 (일시적 끊김 내성 강화)
+        const NETWORK_WARNING_THRESHOLD = 5; // 네트워크 경고 표시 기준: 연속 5회 오류
         const pollStartTime = Date.now();
         let consecutiveErrors = 0;
         let healthCheckFailCount = 0;
@@ -333,6 +334,7 @@ class InhalerAnalysisApp {
             // 전체 타임아웃 검사
             if (Date.now() - pollStartTime > MAX_POLL_DURATION_MS) {
                 this.stopStatusPolling();
+                this.hideNetworkWarning();
                 this.updateButtonStates();
                 this.showError('분석 시간 초과',
                     '서버 응답 대기 시간이 초과되었습니다. 페이지를 새로고침한 후 다시 시도해주세요.');
@@ -344,6 +346,7 @@ class InhalerAnalysisApp {
                 consecutiveErrors = 0;
                 healthCheckFailCount = 0;
                 currentPollInterval = NORMAL_POLL_INTERVAL;
+                this.hideNetworkWarning();
 
                 // 프로그레스 바 업데이트 (서버에서 받은 실제 진행률 사용)
                 this.updateProgressBar(status.progress, status.current_stage);
@@ -368,6 +371,7 @@ class InhalerAnalysisApp {
                 // 404 "분석 작업을 찾을 수 없습니다" → 서버 재시작으로 데이터 유실
                 if (error.message && error.message.includes('분석 작업을 찾을 수 없습니다')) {
                     this.stopStatusPolling();
+                    this.hideNetworkWarning();
                     this.updateButtonStates();
                     this.showError('분석 데이터 유실',
                         '서버가 재시작되어 분석 데이터가 유실되었습니다. 다시 분석을 시작해주세요.');
@@ -376,9 +380,20 @@ class InhalerAnalysisApp {
 
                 consecutiveErrors++;
 
-                if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+                // 네트워크 불안정 경고 표시 (비침습적)
+                if (consecutiveErrors >= NETWORK_WARNING_THRESHOLD) {
+                    this.showNetworkWarning('네트워크 연결이 불안정합니다. 자동으로 재시도 중...');
+                }
+
+                // 오류 유형에 따라 허용 한도를 차등 적용
+                // 타임아웃은 서버가 바쁜 것일 수 있으므로 ×1.5 배 더 관대하게 처리
+                const isTimeout = error.message && error.message.includes('시간이 초과');
+                const effectiveMaxErrors = isTimeout ?
+                    Math.floor(MAX_CONSECUTIVE_ERRORS * 1.5) : MAX_CONSECUTIVE_ERRORS;
+
+                if (consecutiveErrors >= effectiveMaxErrors) {
                     // 서버 헬스체크 수행
-                    console.log('연속 오류 상한 도달, 서버 헬스체크 수행...');
+                    console.log(`연속 오류 상한 도달 (${consecutiveErrors}/${effectiveMaxErrors}), 서버 헬스체크 수행...`);
                     const isServerAlive = await this.api.checkHealth();
 
                     if (isServerAlive) {
@@ -394,18 +409,20 @@ class InhalerAnalysisApp {
                         console.log(`서버 헬스체크 실패 (${healthCheckFailCount}/${MAX_HEALTH_CHECK_FAILS})`);
 
                         if (healthCheckFailCount >= MAX_HEALTH_CHECK_FAILS) {
-                            // 2회 연속 헬스체크 실패 → 최종 오류
+                            // 3회 연속 헬스체크 실패 → 최종 오류
                             this.stopStatusPolling();
+                            this.hideNetworkWarning();
                             this.updateButtonStates();
                             this.showError('서버 연결 오류',
                                 '서버와의 연결이 끊어졌습니다. 페이지를 새로고침한 후 다시 시도해주세요.');
                             return;
                         }
 
-                        // 아직 재시도 기회 남음 → 카운터 리셋 후 계속
+                        // 아직 재시도 기회 남음 → 카운터 리셋, 점진적 대기 후 계속
                         consecutiveErrors = 0;
+                        const backoffMs = 3000 * healthCheckFailCount;
                         currentPollInterval = SLOW_POLL_INTERVAL;
-                        this.statusPollInterval = setTimeout(poll, currentPollInterval);
+                        this.statusPollInterval = setTimeout(poll, backoffMs);
                     }
                 } else {
                     this.statusPollInterval = setTimeout(poll, currentPollInterval);
@@ -907,6 +924,29 @@ class InhalerAnalysisApp {
         }
     }
     
+    /**
+     * 네트워크 불안정 경고 표시 (비침습적 배너)
+     * @param {string} message - 경고 메시지
+     */
+    showNetworkWarning(message) {
+        const warningEl = document.getElementById('networkWarning');
+        const textEl = document.getElementById('networkWarningText');
+        if (warningEl && textEl) {
+            textEl.textContent = message;
+            warningEl.classList.remove('hidden');
+        }
+    }
+
+    /**
+     * 네트워크 경고 숨기기
+     */
+    hideNetworkWarning() {
+        const warningEl = document.getElementById('networkWarning');
+        if (warningEl) {
+            warningEl.classList.add('hidden');
+        }
+    }
+
     /**
      * 에러 표시
      * @param {string} title - 에러 제목

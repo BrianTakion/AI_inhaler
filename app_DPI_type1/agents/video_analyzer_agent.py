@@ -12,6 +12,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import re
+import time
 import class_PromptBank_DPI_type1 as PB
 from .state import VideoAnalysisState
 from .video_processor_agent import VideoProcessorAgent
@@ -33,7 +34,7 @@ class VideoAnalyzerAgent:
        - 시간대별 행동 매핑
     """
 
-    MAX_CONSECUTIVE_API_ERRORS = 3
+    MAX_CONSECUTIVE_API_ERRORS = 5
     ERROR_RESPONSE_PREFIXES = ("API Error:", "Image Error:", "Video Error:")
 
     def __init__(self, mllm, video_processor: VideoProcessorAgent, model_id: str, model_name: str):
@@ -388,13 +389,15 @@ Q6_Confidence: [0.0 to 1.0, indicating your confidence level in the answer]
                 system_prompt, user_prompt, image_array=output_image
             )
 
-            # API 에러 감지
+            # API 에러 감지 (백오프 재시도 포함)
             if isinstance(response, str) and response.startswith(self.ERROR_RESPONSE_PREFIXES):
                 consecutive_errors += 1
-                print(f'[{self.model_id}] API 오류 ({consecutive_errors}/{self.MAX_CONSECUTIVE_API_ERRORS}): {response[:100]}')
+                wait_time = min(2 ** consecutive_errors, 30)  # 최대 30초 대기
+                print(f'[{self.model_id}] API 오류 ({consecutive_errors}/{self.MAX_CONSECUTIVE_API_ERRORS}), {wait_time}초 대기: {response[:100]}')
                 if consecutive_errors >= self.MAX_CONSECUTIVE_API_ERRORS:
                     print(f'[{self.model_id}] 연속 API 오류 한도 도달, 탐색 종료')
                     break
+                time.sleep(wait_time)
                 start_time += offset_time
                 continue
             else:
