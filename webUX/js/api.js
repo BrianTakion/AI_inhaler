@@ -1,9 +1,21 @@
 // API Client Module
 // 백엔드 API 서버와 통신하는 모듈
 
-// 현재 호스트 기반으로 API URL 동적 설정 (외부 IP 접속 지원)
-// 브라우저가 접속한 호스트(예: localhost, 172.17.0.2)와 동일한 호스트 사용
-const API_BASE_URL = `${window.location.protocol}//${window.location.hostname}:8000/api`;
+// 현재 호스트 기반으로 API URL 동적 설정
+// GitHub Codespaces, 로컬 개발, 외부 IP 접속 모두 지원
+function getApiBaseUrl() {
+    const hostname = window.location.hostname;
+
+    // GitHub Codespaces: hostname 형식이 "xxx-8080.app.github.dev"
+    if (hostname.includes('.app.github.dev')) {
+        const newHostname = hostname.replace(/-\d+\.app\.github\.dev/, '-8000.app.github.dev');
+        return `${window.location.protocol}//${newHostname}/api`;
+    }
+
+    // 로컬 개발 / 외부 IP: 표준 포트 기반 URL
+    return `${window.location.protocol}//${hostname}:8000/api`;
+}
+const API_BASE_URL = getApiBaseUrl();
 
 class APIClient {
     /**

@@ -34,7 +34,7 @@ class VideoAnalyzerAgent:
        - 시간대별 행동 매핑
     """
 
-    MAX_CONSECUTIVE_API_ERRORS = 5
+    MAX_CONSECUTIVE_API_ERRORS = 10
     ERROR_RESPONSE_PREFIXES = ("API Error:", "Image Error:", "Video Error:")
 
     def __init__(self, mllm, video_processor: VideoProcessorAgent, model_id: str, model_name: str):
@@ -372,7 +372,8 @@ Q6_Confidence: [0.0 to 1.0, indicating your confidence level in the answer]
         final_start_time = start_time
         consecutive_errors = 0
         iteration_count = 0
-        MAX_ITERATIONS = 200
+        max_possible_iterations = int((play_time - start_time) / offset_time) + 1
+        MAX_ITERATIONS = min(max_possible_iterations, 2000)  # 영상 길이에 비례, 안전 상한 2000
 
         while start_time <= play_time - segment_time:
             iteration_count += 1

@@ -38,18 +38,15 @@
   "portsAttributes": {
     "8080": {
       "label": "Frontend",
-      "onAutoForward": "notify"
+      "onAutoForward": "openBrowserOnce"
     },
     "8000": {
       "label": "Backend API",
-      "onAutoForward": "notify"
+      "onAutoForward": "silent"
     }
   },
 
-  "runArgs": [
-    "-p", "8080:8080",
-    "-p", "8000:8000"
-  ],
-
+  "shutdownAction": "stopContainer",
+  
   "remoteUser": "root"
 }

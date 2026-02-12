@@ -142,14 +142,14 @@ FIXED_LLM_MODELS = ["gpt-4.1", "gpt-4.1", "gemini-3-flash-preview", "gemini-3-fl
 MAX_CONCURRENT_ANALYSES = 5
 
 # 프로세스 타임아웃 (초)
-PROCESS_TIMEOUT = 1800  # 30분 (LLM API 120초 timeout + 5회 에러 중단 + 백오프 대기 포함, 정상 분석은 30분 내 완료)
+PROCESS_TIMEOUT = 7200  # 2시간 (1시간 이상 영상 분석 지원, LLM API timeout + 에러 재시도 + 백오프 대기 포함)
 
 # 파일 업로드 제한
-MAX_FILE_SIZE = 500 * 1024 * 1024  # 500MB
+MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024  # 2GB
 ALLOWED_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv'}
 
 # 파일 정리 스케줄러 설정
-CLEANUP_OLD_FILES_DURATION = 24  # 24 hours
+CLEANUP_OLD_FILES_DURATION = 48  # 48 hours (대용량 파일 보관 기간 연장)
 
 # 분석 결과 보관 시간 (완료/에러 상태)
 ANALYSIS_STORAGE_TTL_HOURS = 2
